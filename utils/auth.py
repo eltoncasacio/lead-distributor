@@ -118,6 +118,9 @@ def obter_loja_logada() -> Optional[dict]:
     if not st.session_state.get("logged_in"):
         return None
 
+    # Re-sync query param (st.navigation pode limpar entre renders)
+    st.query_params["s"] = st.session_state["loja_id"]
+
     return {
         "loja_id": st.session_state.get("loja_id"),
         "nome": st.session_state.get("loja_nome"),
