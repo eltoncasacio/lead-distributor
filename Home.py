@@ -4,7 +4,7 @@ Dashboard e a pagina padrao apos login.
 """
 import streamlit as st
 from utils.auth import validar_codigo, salvar_sessao, obter_loja_logada, esconder_sidebar_se_deslogado
-from utils.ui import inject_global_css
+from utils.ui import inject_global_css, show_sidebar_info
 from dotenv import load_dotenv
 
 # Carregar .env (dev local)
@@ -94,6 +94,9 @@ pg = st.navigation([
     st.Page("pages/3_👤_Vendedores.py", title="Vendedores", icon=":material/group:"),
     st.Page("pages/4_Leads.py", title="Leads", icon=":material/leaderboard:"),
 ])
+
+# Sidebar: info da conta + botao Sair
+show_sidebar_info()
 
 # Executar pagina selecionada
 pg.run()
