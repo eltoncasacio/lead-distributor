@@ -63,8 +63,8 @@ if st.session_state.editando_gerente:
         whatsapp = st.text_input(
             "WhatsApp",
             value=gerente_atual["numero_whatsapp"] if gerente_atual else "",
-            placeholder="Ex: 5511999998888",
-            help="Formato: 55 + DDD + numero (apenas numeros)"
+            placeholder="Ex: 11999998888",
+            help="DDD + numero (o 55 e adicionado automaticamente)"
         )
 
         col_btn1, col_btn2 = st.columns(2)

@@ -20,6 +20,22 @@ SORTABLE_CUSTOM_STYLE = """
     list-style: none;
 """
 
+# Estilo horizontal para fila de distribuicao
+SORTABLE_HORIZONTAL_STYLE = """
+    background-color: #1a1d24;
+    border: 1px solid #272b33;
+    border-radius: 8px;
+    padding: 8px 16px;
+    margin: 0 4px;
+    color: #d1d5db;
+    font-weight: 500;
+    font-size: 14px;
+    cursor: grab;
+    transition: all 0.15s ease;
+    list-style: none;
+    white-space: nowrap;
+"""
+
 
 def inject_global_css():
     """Injeta CSS global para visual SaaS profissional."""

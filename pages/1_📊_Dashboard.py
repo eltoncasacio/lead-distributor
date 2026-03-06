@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, timedelta
 from streamlit_sortables import sort_items
-from utils.ui import render_page_header, loading_spinner, error_message, inject_global_css, SORTABLE_CUSTOM_STYLE
+from utils.ui import render_page_header, loading_spinner, error_message, inject_global_css, SORTABLE_HORIZONTAL_STYLE, SORTABLE_CUSTOM_STYLE
 from utils.auth import obter_loja_logada
 from utils.queries import (
     get_metricas_hoje,
@@ -91,74 +91,89 @@ with st.container(border=True):
         if "ordem_original_dashboard" not in st.session_state:
             st.session_state.ordem_original_dashboard = ordem_original_ids
 
-        # --- Visual da fila com setas ---
-        queue_parts = []
-        for i, v in enumerate(vendedores_ativos_sorted):
-            if i > 0:
-                queue_parts.append(
-                    '<span style="color:#4b5563;font-size:16px;margin:0 6px;">→</span>'
-                )
-            if i == 0:
-                # Primeiro: dourado, recebe proximo lead
-                queue_parts.append(
-                    f'<span style="background:linear-gradient(135deg,#d4a853,#b8922e);'
-                    f'color:#111318;padding:8px 16px;border-radius:8px;font-weight:700;'
-                    f'font-size:14px;display:inline-block;white-space:nowrap;">'
-                    f'{v["nome"]}</span>'
-                )
-            else:
-                queue_parts.append(
-                    f'<span style="background:#1a1d24;border:1px solid #272b33;color:#9ca3af;'
-                    f'padding:8px 16px;border-radius:8px;font-weight:400;'
-                    f'font-size:14px;display:inline-block;white-space:nowrap;">'
-                    f'{v["nome"]}</span>'
-                )
+        # --- Fila arrastavel com threshold horizontal/vertical ---
+        nomes = [v['nome'] for v in vendedores_ativos_sorted]
+        usar_horizontal = len(nomes) <= 8
 
-        indicator = (
-            '<span style="color:#d4a853;font-size:20px;margin-right:8px;'
-            'display:inline-flex;align-items:center;">→</span>'
+        st.markdown(
+            '<div style="color:#d4a853;font-size:12px;margin-bottom:-8px;">'
+            '→ próximo lead</div>',
+            unsafe_allow_html=True
         )
-        queue_html = (
-            f'<div style="display:flex;align-items:center;flex-wrap:wrap;'
-            f'gap:4px;margin:12px 0 4px 0;">'
-            f'{indicator}{"".join(queue_parts)}</div>'
-            f'<div style="color:#6b7280;font-size:12px;margin-left:32px;'
-            f'margin-top:4px;">próximo lead</div>'
+
+        nova_ordem_nomes = sort_items(
+            nomes,
+            multi_containers=False,
+            direction="horizontal" if usar_horizontal else "vertical",
+            key="reorder_vendedores_dashboard",
+            custom_style=SORTABLE_HORIZONTAL_STYLE if usar_horizontal else SORTABLE_CUSTOM_STYLE
         )
-        st.markdown(queue_html, unsafe_allow_html=True)
 
-        st.markdown("#####")
+        # JS: destacar primeiro item (dourado) dentro do iframe do sortable
+        st.components.v1.html("""
+        <script>
+        (function() {
+            function styleFirst() {
+                try {
+                    var frames = window.parent.document.querySelectorAll('iframe');
+                    for (var i = 0; i < frames.length; i++) {
+                        try {
+                            var doc = frames[i].contentDocument;
+                            if (!doc) continue;
+                            var items = doc.querySelectorAll('li');
+                            if (items.length < 2) continue;
+                            for (var j = 0; j < items.length; j++) {
+                                if (j === 0) {
+                                    items[j].style.background = 'linear-gradient(135deg, #d4a853, #b8922e)';
+                                    items[j].style.color = '#111318';
+                                    items[j].style.fontWeight = '700';
+                                    items[j].style.border = 'none';
+                                } else {
+                                    items[j].style.background = '#1a1d24';
+                                    items[j].style.color = '#d1d5db';
+                                    items[j].style.fontWeight = '500';
+                                    items[j].style.border = '1px solid #272b33';
+                                }
+                            }
+                            var parent = items[0].parentElement;
+                            if (parent && !parent._obs) {
+                                parent._obs = true;
+                                new MutationObserver(function() {
+                                    setTimeout(styleFirst, 50);
+                                }).observe(parent, {childList: true, subtree: true});
+                            }
+                        } catch(e) {}
+                    }
+                } catch(e) {}
+            }
+            setTimeout(styleFirst, 300);
+            setTimeout(styleFirst, 800);
+            setTimeout(styleFirst, 1500);
+        })();
+        </script>
+        """, height=0)
 
-        # --- Drag-drop para reordenar ---
-        with st.expander("Reordenar fila"):
-            nomes = [v['nome'] for v in vendedores_ativos_sorted]
+        st.caption("Arraste para reordenar a fila")
 
-            nova_ordem_nomes = sort_items(
-                nomes,
-                multi_containers=False,
-                direction="vertical",
-                key="reorder_vendedores_dashboard",
-                custom_style=SORTABLE_CUSTOM_STYLE
-            )
+        # Mapear nomes para IDs
+        nova_ordem_ids = []
+        for nome in nova_ordem_nomes:
+            vendedor = next((v for v in vendedores_ativos_sorted if v["nome"] == nome), None)
+            if vendedor:
+                nova_ordem_ids.append(vendedor["id"])
 
-            # Mapear nomes para IDs
-            nova_ordem_ids = []
-            for nome in nova_ordem_nomes:
-                vendedor = next((v for v in vendedores_ativos_sorted if v["nome"] == nome), None)
-                if vendedor:
-                    nova_ordem_ids.append(vendedor["id"])
+        # Detectar mudanca REAL
+        ordem_mudou = nova_ordem_ids != st.session_state.ordem_original_dashboard
 
-            # Detectar mudanca REAL
-            ordem_mudou = nova_ordem_ids != st.session_state.ordem_original_dashboard
-
-            # Auto-save quando ordem mudar
-            if ordem_mudou and len(nova_ordem_ids) == len(vendedores_ativos):
-                try:
-                    reordenar_vendedores(loja["loja_id"], nova_ordem_ids)
-                    st.session_state.ordem_original_dashboard = nova_ordem_ids
-                    st.rerun()
-                except Exception as e:
-                    error_message(f"Erro ao salvar: {str(e)}")
+        # Auto-save quando ordem mudar
+        if ordem_mudou and len(nova_ordem_ids) == len(vendedores_ativos):
+            try:
+                reordenar_vendedores(loja["loja_id"], nova_ordem_ids)
+                st.session_state.ordem_original_dashboard = nova_ordem_ids
+                st.session_state.atividades_loaded = False
+                st.rerun()
+            except Exception as e:
+                error_message(f"Erro ao salvar: {str(e)}")
 
     elif len(vendedores_ativos) == 1:
         vendedor = vendedores_ativos[0]
@@ -218,7 +233,7 @@ with st.container(border=True):
         # Gerar HTML das atividades
         atividades_html = []
         for i, ativ in enumerate(atividades):
-            timestamp = pd.to_datetime(ativ["timestamp"])
+            timestamp = pd.to_datetime(ativ["criado_em"])
             agora = pd.Timestamp.now(tz='America/Sao_Paulo')
 
             # Tempo relativo
@@ -232,21 +247,7 @@ with st.container(border=True):
             else:
                 tempo_str = f"ha {minutos // 1440}d"
 
-            # Status legivel
-            status_map = {
-                "novo": "Novo",
-                "atendido": "Atendido",
-                "negociando": "Negociando",
-                "desistiu": "Desistiu",
-                "venda_concretizada": "Venda Fechada"
-            }
-            status_texto = status_map.get(ativ["status_lead"], ativ["status_lead"])
-
-            # HTML da atividade
-            if ativ["tipo"] == "novo_lead":
-                texto = f"<strong>{ativ['nome_cliente']}</strong> → {ativ['vendedor_nome']} ({tempo_str})"
-            else:
-                texto = f"<strong>{ativ['nome_cliente']}</strong> mudou para <strong>{status_texto}</strong> ({tempo_str})"
+            texto = f"{ativ['descricao']} ({tempo_str})"
 
             atividades_html.append(
                 f'<div class="atividade-item">{texto}</div>'

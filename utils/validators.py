@@ -46,8 +46,8 @@ def validar_nome(nome: str) -> Tuple[bool, Optional[str]]:
     if len(nome) > 100:
         return False, "Nome muito longo (máximo 100 caracteres)"
 
-    if not re.match(r'^[a-zA-ZÀ-ÿ\s]+$', nome):
-        return False, "Nome deve conter apenas letras e espaços"
+    if not re.match(r'^[a-zA-ZÀ-ÿ0-9\s]+$', nome):
+        return False, "Nome deve conter apenas letras, numeros e espaços"
 
     return True, None
 
@@ -55,6 +55,13 @@ def validar_nome(nome: str) -> Tuple[bool, Optional[str]]:
 def formatar_whatsapp(whatsapp: str) -> str:
     """
     Formata WhatsApp removendo caracteres especiais.
+    Adiciona prefixo 55 automaticamente se necessario.
     Retorna apenas números.
     """
-    return re.sub(r'\D', '', whatsapp)
+    numeros = re.sub(r'\D', '', whatsapp)
+
+    # Adicionar 55 automaticamente se usuario digitou sem DDI
+    if numeros and not numeros.startswith('55'):
+        numeros = '55' + numeros
+
+    return numeros

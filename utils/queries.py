@@ -8,6 +8,20 @@ from .supabase_client import get_cached_supabase_client
 
 
 # ============================================
+# ATIVIDADES (LOG)
+# ============================================
+
+def registrar_atividade(loja_id: str, tipo: str, descricao: str):
+    """Insere registro na tabela atividades."""
+    supabase = get_cached_supabase_client()
+    supabase.table("atividades").insert({
+        "loja_id": loja_id,
+        "tipo": tipo,
+        "descricao": descricao
+    }).execute()
+
+
+# ============================================
 # GERENTES
 # ============================================
 
@@ -123,6 +137,10 @@ def adicionar_vendedor(
         })
         .execute()
     )
+
+    if response.data:
+        registrar_atividade(loja_id, "vendedor_adicionado", f"Vendedor {nome} adicionado à fila")
+
     return response.data[0] if response.data else None
 
 
@@ -154,6 +172,7 @@ def alterar_status_vendedor(vendedor_id: str, novo_status: str) -> Dict[str, Any
         return None
 
     loja_id = vendedor.data[0]["loja_id"]
+    nome_vendedor = vendedor.data[0]["nome"]
 
     # Alterar status
     response = (
@@ -166,6 +185,16 @@ def alterar_status_vendedor(vendedor_id: str, novo_status: str) -> Dict[str, Any
     # Se inativou/removeu, recalcular próximo vendedor
     if novo_status in ["inativo", "removido"]:
         atualizar_proximo_vendedor_da_loja(loja_id)
+
+    # Registrar atividade
+    tipo_map = {
+        "removido": ("vendedor_removido", f"Vendedor {nome_vendedor} removido da fila"),
+        "inativo": ("vendedor_inativado", f"Vendedor {nome_vendedor} inativado"),
+        "ativo": ("vendedor_reativado", f"Vendedor {nome_vendedor} reativado"),
+    }
+    if novo_status in tipo_map:
+        tipo, descricao = tipo_map[novo_status]
+        registrar_atividade(loja_id, tipo, descricao)
 
     return response.data[0] if response.data else None
 
@@ -211,13 +240,15 @@ def reordenar_vendedores(loja_id: str, nova_ordem: List[str]) -> bool:
     """
     supabase = get_cached_supabase_client()
 
-    # Validar que todos IDs pertencem à loja
+    # Validar que todos IDs pertencem à loja e coletar nomes para log
+    nomes_nova_ordem = []
     for vendedor_id in nova_ordem:
-        vendedor = supabase.table("vendedores").select("id, loja_id").eq("id", vendedor_id).execute()
+        vendedor = supabase.table("vendedores").select("id, loja_id, nome").eq("id", vendedor_id).execute()
         if not vendedor.data:
             raise ValueError(f"Vendedor {vendedor_id} não encontrado")
         if vendedor.data[0]["loja_id"] != loja_id:
             raise ValueError(f"Vendedor {vendedor_id} não pertence à loja {loja_id}")
+        nomes_nova_ordem.append(vendedor.data[0]["nome"])
 
     # Atualizar ordem_fila de cada vendedor
     for idx, vendedor_id in enumerate(nova_ordem, start=1):
@@ -235,6 +266,11 @@ def reordenar_vendedores(loja_id: str, nova_ordem: List[str]) -> bool:
         supabase.table("lojas").update({
             "proximo_vendedor_id": nova_ordem[0]  # Primeiro da nova ordem = posição 1
         }).eq("id", loja_id).execute()
+
+    # Registrar atividade
+    if nomes_nova_ordem:
+        descricao = "Fila reordenada: " + " → ".join(nomes_nova_ordem)
+        registrar_atividade(loja_id, "fila_reordenada", descricao)
 
     return True
 
@@ -326,12 +362,11 @@ def whatsapp_ja_existe(whatsapp: str, loja_id: str, excluir_id: Optional[str] = 
     if gerentes_response.data:
         return True
 
-    # Checar vendedores
+    # Checar vendedores (global — constraint é unique cross-store)
     vendedores_query = (
         supabase.table("vendedores")
         .select("id")
         .eq("numero_whatsapp", whatsapp)
-        .eq("loja_id", loja_id)
     )
 
     if excluir_id:
@@ -711,9 +746,7 @@ def get_leads_lista(
 
 def get_atividades_recentes(loja_id: str, limite: int = 10, offset: int = 0) -> List[Dict[str, Any]]:
     """
-    Retorna timeline unificada de atividades recentes:
-    - Novos leads (criado_em ≈ atualizado_em)
-    - Mudanças de status (atualizado_em > criado_em)
+    Retorna atividades recentes da tabela `atividades`.
 
     Args:
         loja_id: ID da loja
@@ -721,43 +754,18 @@ def get_atividades_recentes(loja_id: str, limite: int = 10, offset: int = 0) -> 
         offset: Número de registros a pular (para paginação)
 
     Returns:
-        Lista de atividades ordenadas por timestamp (mais recente primeiro)
+        Lista de atividades ordenadas por criado_em (mais recente primeiro)
     """
     supabase = get_cached_supabase_client()
-    from datetime import datetime
-
-    # Buscar leads recentes + atualizados com paginação
     response = (
-        supabase.table("leads")
-        .select("*, vendedores(nome)")
+        supabase.table("atividades")
+        .select("tipo, descricao, criado_em")
         .eq("loja_id", loja_id)
-        .order("atualizado_em", desc=True)
+        .order("criado_em", desc=True)
         .range(offset, offset + limite - 1)
         .execute()
     )
-
-    if not response.data:
-        return []
-
-    atividades = []
-    for lead in response.data:
-        criado = datetime.fromisoformat(lead["criado_em"].replace("Z", "+00:00"))
-        atualizado = datetime.fromisoformat(lead["atualizado_em"].replace("Z", "+00:00"))
-
-        # Se diferença > 10 segundos, é atualização de status
-        diff_segundos = (atualizado - criado).total_seconds()
-        tipo = "status_atualizado" if diff_segundos > 10 else "novo_lead"
-
-        atividades.append({
-            "tipo": tipo,
-            "timestamp": lead["atualizado_em"],
-            "nome_cliente": lead.get("nome_cliente", "N/A"),
-            "anuncio": lead.get("anuncio", "WhatsApp Direto"),
-            "vendedor_nome": lead["vendedores"]["nome"] if lead.get("vendedores") else "N/A",
-            "status_lead": lead.get("status_lead", "novo")
-        })
-
-    return atividades
+    return response.data or []
 
 
 def get_fila_distribuicao(loja_id: str) -> List[Dict[str, Any]]:

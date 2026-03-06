@@ -63,8 +63,8 @@ if st.session_state.editando_vendedor:
         whatsapp = st.text_input(
             "WhatsApp",
             value=vendedor_atual["numero_whatsapp"] if vendedor_atual else "",
-            placeholder="Ex: 5511999998888",
-            help="Formato: 55 + DDD + numero (apenas numeros)"
+            placeholder="Ex: 11999998888",
+            help="DDD + numero (o 55 e adicionado automaticamente)"
         )
 
         col_btn1, col_btn2 = st.columns(2)
@@ -111,7 +111,11 @@ if st.session_state.editando_vendedor:
                 st.rerun()
 
             except Exception as e:
-                error_message(f"Erro ao salvar: {str(e)}")
+                msg = str(e)
+                if "23505" in msg or "duplicate key" in msg.lower():
+                    error_message("Este numero de WhatsApp ja esta cadastrado.")
+                else:
+                    error_message(f"Erro ao salvar: {msg}")
 
 # ============================================
 # TABELA DE VENDEDORES COM ACOES INTEGRADAS

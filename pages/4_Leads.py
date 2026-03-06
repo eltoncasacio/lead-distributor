@@ -10,6 +10,7 @@ from utils.auth import obter_loja_logada
 from utils.queries import (
     get_leads_lista,
     listar_vendedores,
+    registrar_atividade,
 )
 from utils.supabase_client import get_cached_supabase_client
 
@@ -199,6 +200,14 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
 
             try:
                 # Comparar row-by-row para salvar apenas o que mudou
+                status_map = {
+                    "novo": "Novo",
+                    "atendido": "Atendido",
+                    "negociando": "Negociando",
+                    "desistiu": "Desistiu",
+                    "venda_concretizada": "Venda Fechada",
+                }
+
                 for idx, row in edited_df.iterrows():
                     status_original = df_exibir.iloc[idx]["Status"]
                     status_novo = row["Status"]
@@ -209,6 +218,22 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
                             "status_lead": status_novo
                         }).eq("id", lead_id).execute()
                         mudancas += 1
+
+                        # Registrar atividade
+                        nome_cliente = leads[idx].get("nome_cliente", "N/A")
+                        anuncio = leads[idx].get("anuncio", "WhatsApp Direto")
+                        vendedor_nome = leads[idx].get("vendedor_nome", "N/A")
+                        status_label = status_map.get(status_novo, status_novo)
+                        descricao = (
+                            f"Lead {nome_cliente} - {anuncio} - "
+                            f"Status alterado para {status_label} "
+                            f"(Vendedor {vendedor_nome})"
+                        )
+                        registrar_atividade(
+                            loja["loja_id"],
+                            "status_lead_alterado",
+                            descricao,
+                        )
 
                 # Atualizar tracking APENAS após sucesso total
                 st.session_state[session_key] = hash_editado
