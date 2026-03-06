@@ -1,6 +1,6 @@
 """
 Sistema de autenticação baseado em código da loja.
-Usa session_state + cookies para persistir login entre refreshes.
+Usa session_state + query_params para persistir login entre refreshes.
 """
 import streamlit as st
 from typing import Optional
@@ -59,6 +59,7 @@ def salvar_sessao(loja: dict):
     st.session_state["logged_in"] = True
     st.session_state["loja_id"] = loja["loja_id"]
     st.session_state["loja_nome"] = loja["nome"]
+    st.query_params["s"] = loja["loja_id"]
     st.rerun()
 
 
@@ -70,27 +71,49 @@ def logout():
     for key in ["logged_in", "loja_id", "loja_nome"]:
         if key in st.session_state:
             del st.session_state[key]
+    st.query_params.clear()
     st.rerun()
 
 
-def restaurar_sessao_de_cookie():
+def restaurar_sessao():
     """
-    Placeholder — sessão é mantida via session_state.
-    Mantida para compatibilidade com chamadas existentes.
+    Restaura sessão a partir do query param ?s=<loja_id>.
+    Valida se a loja existe e está ativa antes de restaurar.
     """
-    pass
+    if st.session_state.get("logged_in"):
+        return
+
+    sid = st.query_params.get("s")
+    if not sid:
+        return
+
+    supabase = get_cached_supabase_client()
+    response = (
+        supabase.table("lojas")
+        .select("id, nome")
+        .eq("id", sid)
+        .eq("ativa", True)
+        .execute()
+    )
+
+    if response.data:
+        loja = response.data[0]
+        st.session_state["logged_in"] = True
+        st.session_state["loja_id"] = loja["id"]
+        st.session_state["loja_nome"] = loja["nome"]
+    else:
+        st.query_params.clear()
 
 
 def obter_loja_logada() -> Optional[dict]:
     """
     Retorna dados da loja logada ou None.
-    Restaura de cookie se necessário.
+    Restaura de query param se necessário.
 
     Returns:
         dict com loja_id e nome, ou None se não logado
     """
-    # Tentar restaurar de cookie primeiro
-    restaurar_sessao_de_cookie()
+    restaurar_sessao()
 
     if not st.session_state.get("logged_in"):
         return None
@@ -106,7 +129,7 @@ def esconder_sidebar_se_deslogado():
     Esconde o menu lateral se o usuário não estiver logado.
     Use isso no início de páginas públicas (como login).
     """
-    restaurar_sessao_de_cookie()
+    restaurar_sessao()
     if not st.session_state.get("logged_in"):
         st.markdown(
             """
@@ -122,9 +145,10 @@ def esconder_sidebar_se_deslogado():
 
 def require_login():
     """
-    Decorator para páginas que requerem autenticação.
-    Redireciona para login se não estiver logado.
+    Guarda para páginas que requerem autenticação.
+    Restaura sessão de query param e bloqueia se não logado.
     """
+    restaurar_sessao()
     if not st.session_state.get("logged_in"):
         st.warning("Por favor, faça login para acessar esta página.")
         st.stop()
