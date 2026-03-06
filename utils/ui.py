@@ -92,17 +92,6 @@ def show_sidebar_info():
 
     with st.sidebar:
         st.divider()
-
-        with st.expander("Info da Conta", expanded=False):
-            st.caption(f"**Loja:** {loja['nome']}")
-            st.caption(f"**Codigo:** {loja.get('codigo_acesso', 'N/A')}")
-
-            loja_id = loja.get('id', '')
-            if loja_id:
-                st.caption(f"**ID:** {loja_id[:8]}...")
-
-        st.divider()
-
         if st.button("Sair", use_container_width=True, type="secondary"):
             logout()
 
