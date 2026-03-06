@@ -18,6 +18,7 @@ from utils.queries import (
     obter_proximo_vendedor,
     get_atividades_recentes,
     reordenar_vendedores,
+    get_metricas_funil,
 )
 
 # Header compacto
@@ -633,6 +634,123 @@ with tab3:
         st.caption(f"**Horario de Pico:** {hora_pico['hora_formatada']} com {int(hora_pico['total'])} leads")
     else:
         st.info("Sem dados no periodo")
+
+st.divider()
+
+# ============================================
+# SECAO 5: FUNIL DE CONVERSAO
+# ============================================
+
+st.markdown("### Funil de Vendas")
+
+# Filtros de data customizados
+col_inicio_funil, col_fim_funil = st.columns(2)
+with col_inicio_funil:
+    data_inicio_funil = st.date_input(
+        "Data inicial",
+        value=date.today() - timedelta(days=30),
+        max_value=date.today(),
+        key="data_inicio_funil"
+    )
+with col_fim_funil:
+    data_fim_funil = st.date_input(
+        "Data final",
+        value=date.today(),
+        max_value=date.today(),
+        key="data_fim_funil"
+    )
+
+# Validação
+if data_inicio_funil > data_fim_funil:
+    st.error("Data inicial não pode ser maior que data final")
+else:
+    metricas_funil = get_metricas_funil(loja["loja_id"], data_inicio=data_inicio_funil, data_fim=data_fim_funil)
+
+    novo = metricas_funil["novo"]
+    atendido = metricas_funil["atendido"]
+    negociando = metricas_funil["negociando"]
+    venda = metricas_funil["venda_concretizada"]
+    desistiu = metricas_funil["desistiu"]
+
+    # Calcular % de conversão
+    taxa_atendimento = (atendido / novo * 100) if novo > 0 else 0
+    taxa_negociacao = (negociando / atendido * 100) if atendido > 0 else 0
+    taxa_venda = (venda / negociando * 100) if negociando > 0 else 0
+    taxa_desistencia = (desistiu / novo * 100) if novo > 0 else 0
+
+    # Cards de conversão
+    col1, col2, col3, col4 = st.columns(4, gap="medium")
+
+    with col1:
+        st.metric(
+            label="% Atendidos",
+            value=f"{taxa_atendimento:.1f}%",
+            help=f"{atendido} de {novo} leads foram atendidos"
+        )
+
+    with col2:
+        st.metric(
+            label="% Negociando",
+            value=f"{taxa_negociacao:.1f}%",
+            help=f"{negociando} de {atendido} atendidos entraram em negociação"
+        )
+
+    with col3:
+        st.metric(
+            label="% Vendas",
+            value=f"{taxa_venda:.1f}%",
+            help=f"{venda} de {negociando} negociações viraram venda"
+        )
+
+    with col4:
+        st.metric(
+            label="% Desistência",
+            value=f"{taxa_desistencia:.1f}%",
+            delta=f"-{taxa_desistencia:.1f}%",
+            delta_color="inverse",
+            help=f"{desistiu} de {novo} leads desistiram"
+        )
+
+    st.markdown("####")
+
+    # Gráfico de funil
+    if novo > 0:
+        # Dados do funil (excluir desistiu)
+        stages = ["Novo", "Atendido", "Negociando", "Venda"]
+        values = [novo, atendido, negociando, venda]
+
+        # Criar gráfico de funil
+        fig = go.Figure(go.Funnel(
+            y=stages,
+            x=values,
+            textposition="inside",
+            textinfo="value+percent initial",
+            marker=dict(
+                color=["#d4a853", "#b8922e", "#9a7825", "#7c5f1e"],
+                line=dict(width=2, color="#111318")
+            ),
+            connector={"line": {"color": "#4b5563", "width": 2}},
+            hovertemplate="<b>%{y}</b><br>%{x} leads<br>%{percentInitial} do total<extra></extra>"
+        ))
+
+        fig.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=400,
+            margin=dict(l=0, r=0, t=20, b=0)
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Estatísticas resumidas
+        st.caption(
+            f"**Total de leads:** {novo} | "
+            f"**Conversão final (novo → venda):** {(venda / novo * 100):.1f}% | "
+            f"**Taxa de desistência:** {taxa_desistencia:.1f}%"
+        )
+    else:
+        st.info("Sem dados no período selecionado")
 
 # Footer
 st.divider()

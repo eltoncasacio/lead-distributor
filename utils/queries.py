@@ -788,3 +788,76 @@ def get_fila_distribuicao(loja_id: str) -> List[Dict[str, Any]]:
         })
 
     return fila
+
+
+def get_metricas_funil(
+    loja_id: str,
+    dias: Optional[int] = None,
+    data_inicio: Optional[date] = None,
+    data_fim: Optional[date] = None
+) -> Dict[str, int]:
+    """
+    Retorna contagem de leads por status para calcular conversão.
+
+    Args:
+        loja_id: ID da loja
+        dias: (LEGACY) Últimos N dias a partir de hoje
+        data_inicio: Data inicial customizada (prioridade sobre dias)
+        data_fim: Data final customizada (prioridade sobre dias)
+
+    Returns:
+        {
+            "novo": 100,
+            "atendido": 80,
+            "negociando": 30,
+            "venda_concretizada": 15,
+            "desistiu": 35
+        }
+    """
+    supabase = get_cached_supabase_client()
+    from datetime import datetime, timedelta, time
+
+    # Prioridade: datas customizadas > dias > default 30
+    if data_inicio and data_fim:
+        dt_inicio = datetime.combine(data_inicio, time.min)
+        dt_fim = datetime.combine(data_fim, time.max)
+    else:
+        dias = dias or 30
+        agora = datetime.now()
+        dt_inicio = agora - timedelta(days=dias)
+        dt_fim = agora
+
+    # Buscar todos leads do período
+    response = (
+        supabase.table("leads")
+        .select("status_lead")
+        .eq("loja_id", loja_id)
+        .gte("recebido_em", dt_inicio.isoformat())
+        .lte("recebido_em", dt_fim.isoformat())
+        .execute()
+    )
+
+    if not response.data:
+        return {
+            "novo": 0,
+            "atendido": 0,
+            "negociando": 0,
+            "venda_concretizada": 0,
+            "desistiu": 0
+        }
+
+    # Contar por status
+    contagem = {
+        "novo": 0,
+        "atendido": 0,
+        "negociando": 0,
+        "venda_concretizada": 0,
+        "desistiu": 0
+    }
+
+    for lead in response.data:
+        status = lead.get("status_lead", "novo")
+        if status in contagem:
+            contagem[status] += 1
+
+    return contagem
