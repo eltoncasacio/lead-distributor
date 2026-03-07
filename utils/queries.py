@@ -362,10 +362,11 @@ def whatsapp_ja_existe(whatsapp: str, loja_id: str, excluir_id: Optional[str] = 
     if gerentes_response.data:
         return True
 
-    # Checar vendedores (global — constraint é unique cross-store)
+    # Checar vendedores (scoped por loja)
     vendedores_query = (
         supabase.table("vendedores")
         .select("id")
+        .eq("loja_id", loja_id)
         .eq("numero_whatsapp", whatsapp)
     )
 

@@ -83,8 +83,13 @@ with st.container(border=True):
     vendedores_ativos = [v for v in vendedores if v["status"] == "ativo"]
 
     if len(vendedores_ativos) > 1:
-        # Ordenar por ordem_fila atual
-        vendedores_ativos_sorted = sorted(vendedores_ativos, key=lambda x: x["ordem_fila"])
+        # Ordenar por criado_em (ordem real do Round-Robin)
+        vendedores_ativos_sorted = sorted(vendedores_ativos, key=lambda x: x["criado_em"])
+
+        # Rotacionar para que o próximo vendedor (proximo_vendedor_id) fique em primeiro
+        if proximo:
+            idx = next((i for i, v in enumerate(vendedores_ativos_sorted) if v["id"] == proximo["id"]), 0)
+            vendedores_ativos_sorted = vendedores_ativos_sorted[idx:] + vendedores_ativos_sorted[:idx]
 
         # Ordem ORIGINAL para deteccao de mudanca
         ordem_original_ids = [v['id'] for v in vendedores_ativos_sorted]
