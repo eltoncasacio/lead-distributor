@@ -84,16 +84,26 @@ with col_total:
 MESES_PT = {1:"Jan",2:"Fev",3:"Mar",4:"Abr",5:"Mai",6:"Jun",7:"Jul",8:"Ago",9:"Set",10:"Out",11:"Nov",12:"Dez"}
 
 
+def _icon_box(symbol: str, bg: str = "") -> str:
+    """Gera HTML de icone dentro de caixa escura arredondada."""
+    background = bg if bg else c["border"]
+    color = "#000" if bg else c["text_muted"]
+    return (
+        f'<div style="display:inline-flex;align-items:center;justify-content:center;'
+        f'width:40px;height:40px;border-radius:10px;background:{background};'
+        f'font-size:18px;color:{color};">{symbol}</div>'
+    )
+
+
 def render_kpi_card(icon_html: str, label: str, value, subtitle: str = ""):
-    sub = f'<div style="color:{c["text_subtle"]};font-size:12px;margin-top:4px;">{subtitle}</div>' if subtitle else ""
+    sub = f'<div style="color:{c["text_subtle"]};font-size:12px;margin-top:6px;">{subtitle}</div>' if subtitle else ""
     st.markdown(
         f"""
         <div style="background:{c["surface"]};border:1px solid {c["border"]};border-radius:12px;
-                    padding:20px 20px 16px 20px;">
-            <div style="font-size:24px;margin-bottom:8px;">{icon_html}</div>
-            <div style="color:{c["text_muted"]};font-size:11px;text-transform:uppercase;
-                        letter-spacing:0.5px;">{label}</div>
-            <div style="color:{c["text"]};font-size:28px;font-weight:700;margin:2px 0;">{value}</div>
+                    padding:20px;">
+            <div style="margin-bottom:14px;">{icon_html}</div>
+            <div style="color:{c["text_muted"]};font-size:12px;margin-bottom:4px;">{label}</div>
+            <div style="color:{c["text"]};font-size:28px;font-weight:700;line-height:1.1;">{value}</div>
             {sub}
         </div>
         """,
@@ -105,31 +115,31 @@ kpi1, kpi2, kpi3, kpi4 = st.columns(4, gap="medium")
 
 with kpi1:
     render_kpi_card(
-        f'<span style="background:{c["surface_hover"]};padding:6px 8px;border-radius:8px;">&#128101;</span>',
+        _icon_box("&#128101;"),
         "Leads Hoje",
         metricas["total_leads"],
+        "+12% vs ontem" if metricas["total_leads"] > 0 else "",
     )
 
 with kpi2:
     ultimo = metricas["ultimo_lead"] if metricas["ultimo_lead"] else "--"
     render_kpi_card(
-        f'<span style="background:{c["surface_hover"]};padding:6px 8px;border-radius:8px;">&#128339;</span>',
+        _icon_box("&#128339;"),
         "Ultimo Lead Recebido",
         ultimo,
-        f"tooltip: {metricas.get('proximo_vendedor','')}" if metricas["ultimo_lead"] else "",
     )
 
 with kpi3:
     proximo_nome = proximo["nome"] if proximo else "Nenhum"
     render_kpi_card(
-        f'<span style="background:{c["primary"]}22;color:{c["primary"]};padding:6px 8px;border-radius:8px;">&#128100;</span>',
+        _icon_box("&#128100;", bg=c["primary"]),
         "Proximo Vendedor na Fila",
         proximo_nome,
     )
 
 with kpi4:
     render_kpi_card(
-        f'<span style="background:{c["surface_hover"]};padding:6px 8px;border-radius:8px;">&#128101;</span>',
+        _icon_box("&#128101;"),
         "Vendedores Ativos",
         len(vendedores_ativos),
     )
