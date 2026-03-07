@@ -132,28 +132,28 @@ if gerentes:
     # Acoes por gerente
     st.markdown("### Acoes")
     for gerente in gerentes:
-        col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+        col1, col2 = st.columns([4, 2])
 
         with col1:
             st.text(gerente["nome"])
 
         with col2:
-            if st.button("Editar", key=f"edit_{gerente['id']}", use_container_width=True):
-                st.session_state.editando_gerente = gerente["id"]
-                st.rerun()
-
-        with col3:
-            if gerente["ativo"]:
-                if st.button("Desativar", key=f"deactivate_{gerente['id']}", use_container_width=True):
-                    desativar_gerente(gerente["id"])
-                    success_message(f"Gerente **{gerente['nome']}** desativado")
+            btn1, btn2, btn3 = st.columns(3)
+            with btn1:
+                if st.button(":material/edit:", key=f"edit_{gerente['id']}", help="Editar gerente"):
+                    st.session_state.editando_gerente = gerente["id"]
                     st.rerun()
-
-        with col4:
-            if st.button("Deletar", key=f"delete_{gerente['id']}", use_container_width=True, type="secondary"):
-                deletar_gerente(gerente["id"])
-                success_message(f"Gerente **{gerente['nome']}** removido")
-                st.rerun()
+            with btn2:
+                if gerente["ativo"]:
+                    if st.button(":material/pause:", key=f"deactivate_{gerente['id']}", help="Desativar gerente"):
+                        desativar_gerente(gerente["id"])
+                        success_message(f"Gerente **{gerente['nome']}** desativado")
+                        st.rerun()
+            with btn3:
+                if st.button(":material/delete:", key=f"delete_{gerente['id']}", help="Remover gerente"):
+                    deletar_gerente(gerente["id"])
+                    success_message(f"Gerente **{gerente['nome']}** removido")
+                    st.rerun()
 
 else:
     info_message("Nenhum gerente cadastrado. Clique em 'Adicionar Gerente' para comecar.")

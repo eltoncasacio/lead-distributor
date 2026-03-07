@@ -74,6 +74,13 @@ if not loja:
 st.markdown(
     """
     <style>
+    /* Sidebar expandida: mais estreita */
+    section[data-testid="stSidebar"][aria-expanded="true"] {
+        width: 14rem !important;
+        min-width: 14rem !important;
+        max-width: 14rem !important;
+    }
+
     /* Sidebar recolhida: versao estreita em vez de esconder */
     section[data-testid="stSidebar"][aria-expanded="false"] {
         width: 4.5rem !important;

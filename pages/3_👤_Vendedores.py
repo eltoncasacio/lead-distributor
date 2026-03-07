@@ -129,7 +129,7 @@ if vendedores_visiveis:
         st.caption(f"Total: {len(vendedores_visiveis)} vendedor(es)")
 
         # Cabecalho da tabela customizada
-        col_header1, col_header2, col_header3, col_header4, col_header5, col_header6 = st.columns([2.5, 2, 1.5, 1, 1, 1])
+        col_header1, col_header2, col_header3, col_header4 = st.columns([3, 2.5, 1.5, 2])
         with col_header1:
             st.markdown("**Nome**")
         with col_header2:
@@ -137,17 +137,13 @@ if vendedores_visiveis:
         with col_header3:
             st.markdown("**Status**")
         with col_header4:
-            st.markdown("**Editar**")
-        with col_header5:
-            st.markdown("**Ativar**")
-        with col_header6:
-            st.markdown("**Remover**")
+            st.markdown("**Ações**")
 
         st.divider()
 
         # Renderizar cada vendedor como linha
         for vendedor in vendedores_visiveis:
-            col1, col2, col3, col4, col5, col6 = st.columns([2.5, 2, 1.5, 1, 1, 1])
+            col1, col2, col3, col4 = st.columns([3, 2.5, 1.5, 2])
 
             with col1:
                 st.text(vendedor["nome"])
@@ -169,46 +165,36 @@ if vendedores_visiveis:
                 st.text(status_label.get(vendedor["status"], vendedor["status"]))
 
             with col4:
-                if st.button("Editar", key=f"edit_{vendedor['id']}", use_container_width=True, help="Editar vendedor"):
-                    st.session_state.editando_vendedor = vendedor["id"]
-                    st.rerun()
-
-            with col5:
-                # Inativar/Ativar
-                if vendedor["status"] == "ativo":
-                    # Verificar se e o unico ativo
-                    total_ativos = contar_vendedores_ativos(loja["loja_id"])
-                    if total_ativos <= 1:
-                        st.button(
-                            "Pausar",
-                            key=f"deactivate_{vendedor['id']}",
-                            use_container_width=True,
-                            disabled=True,
-                            help="Nao pode desativar o unico vendedor ativo"
-                        )
-                    else:
-                        if st.button("Pausar", key=f"deactivate_{vendedor['id']}", use_container_width=True, help="Inativar vendedor"):
-                            alterar_status_vendedor(vendedor["id"], "inativo")
-                            success_message(f"**{vendedor['nome']}** inativado")
-                            st.rerun()
-                else:
-                    if st.button("Ativar", key=f"activate_{vendedor['id']}", use_container_width=True, help="Ativar vendedor"):
-                        alterar_status_vendedor(vendedor["id"], "ativo")
-                        success_message(f"**{vendedor['nome']}** ativado")
+                btn1, btn2, btn3 = st.columns(3)
+                with btn1:
+                    if st.button(":material/edit:", key=f"edit_{vendedor['id']}", help="Editar vendedor"):
+                        st.session_state.editando_vendedor = vendedor["id"]
                         st.rerun()
-
-            with col6:
-                if st.button("Remover", key=f"remove_{vendedor['id']}", use_container_width=True, help="Remover vendedor"):
-                    # Verificar se e o unico ativo
+                with btn2:
                     if vendedor["status"] == "ativo":
                         total_ativos = contar_vendedores_ativos(loja["loja_id"])
                         if total_ativos <= 1:
-                            error_message("Nao pode remover o unico vendedor ativo. Adicione outro vendedor primeiro.")
-                            st.stop()
-
-                    alterar_status_vendedor(vendedor["id"], "removido")
-                    success_message(f"**{vendedor['nome']}** removido da fila")
-                    st.rerun()
+                            st.button(":material/pause:", key=f"deactivate_{vendedor['id']}", disabled=True, help="Nao pode desativar o unico vendedor ativo")
+                        else:
+                            if st.button(":material/pause:", key=f"deactivate_{vendedor['id']}", help="Pausar vendedor"):
+                                alterar_status_vendedor(vendedor["id"], "inativo")
+                                success_message(f"**{vendedor['nome']}** inativado")
+                                st.rerun()
+                    else:
+                        if st.button(":material/play_arrow:", key=f"activate_{vendedor['id']}", help="Ativar vendedor"):
+                            alterar_status_vendedor(vendedor["id"], "ativo")
+                            success_message(f"**{vendedor['nome']}** ativado")
+                            st.rerun()
+                with btn3:
+                    if st.button(":material/delete:", key=f"remove_{vendedor['id']}", help="Remover vendedor"):
+                        if vendedor["status"] == "ativo":
+                            total_ativos = contar_vendedores_ativos(loja["loja_id"])
+                            if total_ativos <= 1:
+                                error_message("Nao pode remover o unico vendedor ativo. Adicione outro vendedor primeiro.")
+                                st.stop()
+                        alterar_status_vendedor(vendedor["id"], "removido")
+                        success_message(f"**{vendedor['nome']}** removido da fila")
+                        st.rerun()
 
             # Separador visual entre linhas
             if vendedor != vendedores_visiveis[-1]:

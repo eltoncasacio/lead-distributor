@@ -108,7 +108,7 @@ def show_sidebar_info():
 
     with st.sidebar:
         st.divider()
-        if st.button("Sair", use_container_width=True, type="secondary"):
+        if st.button(":material/logout:", use_container_width=True, type="secondary", help="Sair"):
             logout()
 
 
