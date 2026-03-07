@@ -1,5 +1,5 @@
 """
-Dashboard com layout profissional: metricas em grid, containers com borda, tabs.
+Dashboard com layout redesenhado: KPI cards, fila+timeline lado a lado, analytics em grid.
 """
 import streamlit as st
 import pandas as pd
@@ -7,8 +7,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, timedelta
 from streamlit_sortables import sort_items
-from utils.ui import render_page_header, loading_spinner, error_message, inject_global_css, SORTABLE_HORIZONTAL_STYLE, SORTABLE_CUSTOM_STYLE
+from utils.ui import render_page_header, loading_spinner, error_message, inject_global_css, get_sortable_style
 from utils.auth import obter_loja_logada
+from utils.theme import get_colors, get_plotly_layout_defaults
 from utils.queries import (
     get_metricas_hoje,
     get_leads_por_dia,
@@ -19,18 +20,68 @@ from utils.queries import (
     get_atividades_recentes,
     reordenar_vendedores,
     get_metricas_funil,
+    get_limite_leads,
 )
 
 # Header compacto
 render_page_header("Dashboard")
-
-# CSS global
 inject_global_css()
 
 loja = obter_loja_logada()
+c = get_colors()
 
 # ============================================
-# SECAO 1: NORTH STAR METRICS
+# HEADER BAR: filtro de data + total de leads
+# ============================================
+
+col_filter1, col_filter2, col_spacer, col_total = st.columns([1.5, 1.5, 3, 2], gap="small")
+
+with col_filter1:
+    data_inicio = st.date_input(
+        "De",
+        value=date.today() - timedelta(days=30),
+        max_value=date.today(),
+        key="data_inicio_global"
+    )
+
+with col_filter2:
+    data_fim = st.date_input(
+        "Ate",
+        value=date.today(),
+        max_value=date.today(),
+        key="data_fim_global"
+    )
+
+if data_inicio > data_fim:
+    st.error("Data inicial nao pode ser maior que data final")
+    st.stop()
+
+# Total de leads do periodo + limite do plano
+with col_total:
+    limite = get_limite_leads(loja["loja_id"])
+    leads_periodo = get_leads_por_dia(loja["loja_id"], data_inicio=data_inicio, data_fim=data_fim)
+    total_periodo = sum(d["total"] for d in leads_periodo) if leads_periodo else 0
+    if limite:
+        st.markdown(
+            f'<div style="text-align:right;padding-top:28px;">'
+            f'<span style="color:{c["text_muted"]};font-size:13px;">Total de Leads</span><br>'
+            f'<span style="color:{c["primary"]};font-size:24px;font-weight:700;">{total_periodo}</span>'
+            f'<span style="color:{c["text_subtle"]};font-size:16px;">/{limite}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f'<div style="text-align:right;padding-top:28px;">'
+            f'<span style="color:{c["text_muted"]};font-size:13px;">Total de Leads</span><br>'
+            f'<span style="color:{c["primary"]};font-size:24px;font-weight:700;">{total_periodo}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+
+# ============================================
+# SECAO 1: KPI CARDS
 # ============================================
 
 with loading_spinner("Carregando metricas..."):
@@ -38,72 +89,102 @@ with loading_spinner("Carregando metricas..."):
     vendedores = listar_vendedores(loja["loja_id"])
     proximo = obter_proximo_vendedor(loja["loja_id"])
 
-col1, col2, col3, col4 = st.columns([1, 1, 2, 1], gap="medium")
+vendedores_ativos = [v for v in vendedores if v["status"] == "ativo"]
 
-with col1:
-    st.metric(
+
+def render_kpi_card(icon: str, label: str, value, subtitle: str = ""):
+    sub_html = f'<div style="color:{c["text_subtle"]};font-size:12px;margin-top:2px;">{subtitle}</div>' if subtitle else ""
+    st.markdown(
+        f"""
+        <div style="background:{c["surface"]};border:1px solid {c["border"]};border-radius:12px;
+                    padding:20px;text-align:center;">
+            <div style="font-size:28px;margin-bottom:4px;">{icon}</div>
+            <div style="color:{c["text_muted"]};font-size:12px;text-transform:uppercase;
+                        letter-spacing:0.5px;">{label}</div>
+            <div style="color:{c["text"]};font-size:28px;font-weight:700;margin:4px 0;">{value}</div>
+            {sub_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+kpi1, kpi2, kpi3, kpi4 = st.columns(4, gap="medium")
+
+with kpi1:
+    render_kpi_card(
+        icon="&#128229;",
         label="Leads Hoje",
         value=metricas["total_leads"],
-        help="Total de leads recebidos hoje (metrica principal)"
+        subtitle="recebidos hoje",
     )
 
-with col2:
-    ultimo = metricas["ultimo_lead"] if metricas["ultimo_lead"] else "—"
-    st.metric(
+with kpi2:
+    ultimo = metricas["ultimo_lead"] if metricas["ultimo_lead"] else "---"
+    render_kpi_card(
+        icon="&#128340;",
         label="Ultimo Lead",
         value=ultimo,
-        help="Horario do ultimo lead recebido"
+        subtitle="horario",
     )
 
-with col3:
+with kpi3:
     proximo_nome = proximo["nome"] if proximo else "Nenhum"
-    st.metric(
-        label="Proximo Vendedor",
+    render_kpi_card(
+        icon="&#128100;",
+        label="Proximo na Fila",
         value=proximo_nome,
-        help="Vendedor que recebera o proximo lead"
+        subtitle="recebe o proximo lead",
     )
 
-with col4:
-    vendedores_ativos = [v for v in vendedores if v["status"] == "ativo"]
-    st.metric(
+with kpi4:
+    render_kpi_card(
+        icon="&#128101;",
         label="Vendedores Ativos",
         value=len(vendedores_ativos),
-        help="Total de vendedores na fila de distribuicao"
+        subtitle=f"de {len(vendedores)} total",
     )
 
-st.divider()
+st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
 # ============================================
-# SECAO 2: FILA DE DISTRIBUICAO
+# SECAO 2: FILA + ATIVIDADES (lado a lado)
 # ============================================
 
-with st.container(border=True):
-    st.subheader("Fila de Distribuicao")
+col_fila, col_atividades = st.columns([1.2, 1], gap="medium")
 
-    vendedores_ativos = [v for v in vendedores if v["status"] == "ativo"]
+# --- FILA DE DISTRIBUICAO ---
+with col_fila:
+    st.markdown(
+        f"""
+        <div style="background:{c["surface"]};border:1px solid {c["primary"]};border-radius:12px;
+                    padding:20px;min-height:420px;">
+            <div style="color:{c["text"]};font-size:18px;font-weight:600;margin-bottom:16px;">
+                Fila de Distribuicao
+            </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     if len(vendedores_ativos) > 1:
-        # Ordenar por criado_em (ordem real do Round-Robin)
         vendedores_ativos_sorted = sorted(vendedores_ativos, key=lambda x: x["criado_em"])
 
-        # Rotacionar para que o próximo vendedor (proximo_vendedor_id) fique em primeiro
         if proximo:
             idx = next((i for i, v in enumerate(vendedores_ativos_sorted) if v["id"] == proximo["id"]), 0)
             vendedores_ativos_sorted = vendedores_ativos_sorted[idx:] + vendedores_ativos_sorted[:idx]
 
-        # Ordem ORIGINAL para deteccao de mudanca
-        ordem_original_ids = [v['id'] for v in vendedores_ativos_sorted]
+        ordem_original_ids = [v["id"] for v in vendedores_ativos_sorted]
         if "ordem_original_dashboard" not in st.session_state:
             st.session_state.ordem_original_dashboard = ordem_original_ids
 
-        # --- Fila arrastavel com threshold horizontal/vertical ---
-        nomes = [v['nome'] for v in vendedores_ativos_sorted]
+        nomes = [v["nome"] for v in vendedores_ativos_sorted]
         usar_horizontal = len(nomes) <= 8
 
         st.markdown(
-            '<div style="color:#d4a853;font-size:12px;margin-bottom:-8px;">'
-            '→ próximo lead</div>',
-            unsafe_allow_html=True
+            f'<div style="display:inline-block;background:{c["primary"]};color:#000;'
+            f'font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;'
+            f'margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">PROXIMO</div>',
+            unsafe_allow_html=True,
         )
 
         nova_ordem_nomes = sort_items(
@@ -111,66 +192,63 @@ with st.container(border=True):
             multi_containers=False,
             direction="horizontal" if usar_horizontal else "vertical",
             key="reorder_vendedores_dashboard",
-            custom_style=SORTABLE_HORIZONTAL_STYLE if usar_horizontal else SORTABLE_CUSTOM_STYLE
+            custom_style=get_sortable_style(horizontal=usar_horizontal),
         )
 
-        # JS: destacar primeiro item (dourado) dentro do iframe do sortable
-        st.components.v1.html("""
+        # JS: destacar primeiro item com gradient amber
+        st.components.v1.html(f"""
         <script>
-        (function() {
-            function styleFirst() {
-                try {
+        (function() {{
+            function styleFirst() {{
+                try {{
                     var frames = window.parent.document.querySelectorAll('iframe');
-                    for (var i = 0; i < frames.length; i++) {
-                        try {
+                    for (var i = 0; i < frames.length; i++) {{
+                        try {{
                             var doc = frames[i].contentDocument;
                             if (!doc) continue;
                             var items = doc.querySelectorAll('li');
                             if (items.length < 2) continue;
-                            for (var j = 0; j < items.length; j++) {
-                                if (j === 0) {
-                                    items[j].style.background = 'linear-gradient(135deg, #d4a853, #b8922e)';
-                                    items[j].style.color = '#111318';
+                            for (var j = 0; j < items.length; j++) {{
+                                if (j === 0) {{
+                                    items[j].style.background = 'linear-gradient(135deg, {c["primary"]}, {c["primary_dark"]})';
+                                    items[j].style.color = '#000';
                                     items[j].style.fontWeight = '700';
                                     items[j].style.border = 'none';
-                                } else {
-                                    items[j].style.background = '#1a1d24';
-                                    items[j].style.color = '#d1d5db';
+                                }} else {{
+                                    items[j].style.background = '{c["surface"]}';
+                                    items[j].style.color = '{c["text"]}';
                                     items[j].style.fontWeight = '500';
-                                    items[j].style.border = '1px solid #272b33';
-                                }
-                            }
+                                    items[j].style.border = '1px solid {c["border"]}';
+                                }}
+                            }}
                             var parent = items[0].parentElement;
-                            if (parent && !parent._obs) {
+                            if (parent && !parent._obs) {{
                                 parent._obs = true;
-                                new MutationObserver(function() {
+                                new MutationObserver(function() {{
                                     setTimeout(styleFirst, 50);
-                                }).observe(parent, {childList: true, subtree: true});
-                            }
-                        } catch(e) {}
-                    }
-                } catch(e) {}
-            }
+                                }}).observe(parent, {{childList: true, subtree: true}});
+                            }}
+                        }} catch(e) {{}}
+                    }}
+                }} catch(e) {{}}
+            }}
             setTimeout(styleFirst, 300);
             setTimeout(styleFirst, 800);
             setTimeout(styleFirst, 1500);
-        })();
+        }})();
         </script>
         """, height=0)
 
         st.caption("Arraste para reordenar a fila")
 
-        # Mapear nomes para IDs
         nova_ordem_ids = []
         for nome in nova_ordem_nomes:
             vendedor = next((v for v in vendedores_ativos_sorted if v["nome"] == nome), None)
             if vendedor:
                 nova_ordem_ids.append(vendedor["id"])
 
-        # Detectar mudanca REAL
         ordem_mudou = nova_ordem_ids != st.session_state.ordem_original_dashboard
 
-        # Auto-save quando ordem mudar
         if ordem_mudou and len(nova_ordem_ids) == len(vendedores_ativos):
             try:
                 reordenar_vendedores(loja["loja_id"], nova_ordem_ids)
@@ -182,582 +260,350 @@ with st.container(border=True):
 
     elif len(vendedores_ativos) == 1:
         vendedor = vendedores_ativos[0]
-        indicator = (
-            '<span style="color:#d4a853;font-size:20px;margin-right:8px;">→</span>'
-            f'<span style="background:linear-gradient(135deg,#d4a853,#b8922e);'
-            f'color:#111318;padding:8px 16px;border-radius:8px;font-weight:700;'
-            f'font-size:14px;display:inline-block;">{vendedor["nome"]}</span>'
+        st.markdown(
+            f'<div style="display:inline-block;background:{c["primary"]};color:#000;'
+            f'font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;'
+            f'margin-bottom:8px;text-transform:uppercase;">PROXIMO</div>',
+            unsafe_allow_html=True,
         )
         st.markdown(
-            f'<div style="display:flex;align-items:center;margin:12px 0;">{indicator}</div>'
-            f'<div style="color:#6b7280;font-size:12px;margin-left:32px;">proximo lead</div>',
-            unsafe_allow_html=True
+            f'<div style="background:linear-gradient(135deg,{c["primary"]},{c["primary_dark"]});'
+            f'color:#000;padding:10px 18px;border-radius:8px;font-weight:700;'
+            f'font-size:14px;display:inline-block;">{vendedor["nome"]}</div>',
+            unsafe_allow_html=True,
         )
         st.caption("Apenas 1 vendedor ativo.")
     else:
         st.warning("Nenhum vendedor ativo.")
 
-# ============================================
-# SECAO 3: ATIVIDADES RECENTES (SCROLL INFINITO)
-# ============================================
+    # Fechar div do container amber
+    st.markdown("</div>", unsafe_allow_html=True)
 
-with st.container(border=True):
-    # Header com botão de refresh
-    col_header, col_refresh = st.columns([5, 1])
-    with col_header:
-        st.subheader("Atividades Recentes")
-    with col_refresh:
-        if st.button("🔄", key="refresh_atividades", help="Atualizar atividades"):
-            st.session_state.atividades_todas = []
-            st.session_state.atividades_has_more = True
-            st.session_state.atividades_loaded = False
-            st.rerun()
-
-    # Inicializar state para scroll infinito
-    if "atividades_todas" not in st.session_state:
-        st.session_state.atividades_todas = []
-    if "atividades_has_more" not in st.session_state:
-        st.session_state.atividades_has_more = True
-    if "atividades_loaded" not in st.session_state:
-        st.session_state.atividades_loaded = False
-
-    # Carregar primeira leva de atividades
-    BATCH_SIZE = 20
-    if not st.session_state.atividades_loaded:
-        st.session_state.atividades_todas = get_atividades_recentes(
-            loja["loja_id"],
-            limite=BATCH_SIZE,
-            offset=0
-        )
-        st.session_state.atividades_has_more = len(st.session_state.atividades_todas) == BATCH_SIZE
-        st.session_state.atividades_loaded = True
-
-    atividades = st.session_state.atividades_todas
-
-    if atividades:
-        # Gerar HTML das atividades
-        atividades_html = []
-        for i, ativ in enumerate(atividades):
-            timestamp = pd.to_datetime(ativ["criado_em"])
-            agora = pd.Timestamp.now(tz='America/Sao_Paulo')
-
-            # Tempo relativo
-            tempo_delta = agora - timestamp
-            minutos = int(tempo_delta.total_seconds() / 60)
-
-            if minutos < 60:
-                tempo_str = f"ha {minutos} min"
-            elif minutos < 1440:
-                tempo_str = f"ha {minutos // 60}h"
-            else:
-                tempo_str = f"ha {minutos // 1440}d"
-
-            texto = f"{ativ['descricao']} ({tempo_str})"
-
-            atividades_html.append(
-                f'<div class="atividade-item">{texto}</div>'
-            )
-
-        # Adicionar indicador "Carregar mais" se houver mais dados
-        if st.session_state.atividades_has_more:
-            atividades_html.append(
-                '<div id="load-more-trigger" class="load-more-btn">Carregar mais atividades ↓</div>'
-            )
-
-        # Componente HTML com scroll
-        html_code = f"""
-        <div id="atividades-container" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
-            {''.join(atividades_html)}
-        </div>
-
-        <style>
-        #atividades-container {{
-            scrollbar-width: thin;
-            scrollbar-color: #4b5563 #1a1d24;
-        }}
-        #atividades-container::-webkit-scrollbar {{
-            width: 6px;
-        }}
-        #atividades-container::-webkit-scrollbar-track {{
-            background: #1a1d24;
-            border-radius: 3px;
-        }}
-        #atividades-container::-webkit-scrollbar-thumb {{
-            background: #4b5563;
-            border-radius: 3px;
-        }}
-        #atividades-container::-webkit-scrollbar-thumb:hover {{
-            background: #6b7280;
-        }}
-        .atividade-item {{
-            padding: 10px 0;
-            color: #9ca3af;
-            font-size: 14px;
-            border-bottom: 1px solid #1a1d24;
-            line-height: 1.5;
-        }}
-        .atividade-item:last-of-type {{
-            border-bottom: none;
-        }}
-        .load-more-btn {{
-            padding: 12px;
-            text-align: center;
-            color: #d4a853;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            border-top: 1px solid #272b33;
-            margin-top: 8px;
-            transition: background-color 0.2s;
-        }}
-        .load-more-btn:hover {{
-            background-color: #1a1d24;
-        }}
-        </style>
-
-        <script>
-        // Detectar scroll no final e clicar automaticamente no trigger
-        const container = document.getElementById('atividades-container');
-        const trigger = document.getElementById('load-more-trigger');
-
-        if (container && trigger) {{
-            // Intersection Observer para detectar quando trigger fica visível
-            const observer = new IntersectionObserver((entries) => {{
-                entries.forEach(entry => {{
-                    if (entry.isIntersecting) {{
-                        // Simular clique no botão "Carregar mais" do Streamlit
-                        const buttons = window.parent.document.querySelectorAll('button[kind="secondary"]');
-                        const loadMoreBtn = Array.from(buttons).find(btn =>
-                            btn.textContent.includes('Carregar mais atividades')
-                        );
-                        if (loadMoreBtn) {{
-                            loadMoreBtn.click();
-                        }}
-                    }}
-                }});
-            }}, {{
-                root: container,
-                threshold: 0.1
-            }});
-
-            observer.observe(trigger);
-
-            // Click manual no trigger também funciona
-            trigger.addEventListener('click', () => {{
-                const buttons = window.parent.document.querySelectorAll('button[kind="secondary"]');
-                const loadMoreBtn = Array.from(buttons).find(btn =>
-                    btn.textContent.includes('Carregar mais atividades')
-                );
-                if (loadMoreBtn) {{
-                    loadMoreBtn.click();
-                }}
-            }});
-        }}
-        </script>
-        """
-
-        # Renderizar componente
-        st.components.v1.html(html_code, height=450, scrolling=False)
-
-        # Botão invisível para trigger de scroll (acionado via JavaScript)
-        if st.session_state.atividades_has_more:
-            # CSS para ocultar o botão
-            st.markdown(
-                """
-                <style>
-                button[kind="secondary"]:has-text("Carregar mais atividades") {
-                    display: none !important;
-                }
-                /* Fallback: ocultar por posição se seletor :has-text não funcionar */
-                div[data-testid="column"] > div > button[kind="secondary"] {
-                    position: absolute;
-                    opacity: 0;
-                    pointer-events: none;
-                    height: 0;
-                    width: 0;
-                    overflow: hidden;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
-
-            if st.button(
-                "Carregar mais atividades",
-                key="carregar_mais_atividades_trigger",
-                type="secondary",
-            ):
-                # Carregar próximo batch
-                novo_offset = len(st.session_state.atividades_todas)
-                novas_atividades = get_atividades_recentes(
-                    loja["loja_id"],
-                    limite=BATCH_SIZE,
-                    offset=novo_offset
-                )
-
-                if novas_atividades:
-                    st.session_state.atividades_todas.extend(novas_atividades)
-                    st.session_state.atividades_has_more = len(novas_atividades) == BATCH_SIZE
-                else:
-                    st.session_state.atividades_has_more = False
-
+# --- ATIVIDADES RECENTES ---
+with col_atividades:
+    with st.container(border=True):
+        col_header, col_refresh = st.columns([5, 1])
+        with col_header:
+            st.markdown(f'<div style="font-size:18px;font-weight:600;color:{c["text"]};">Atividades Recentes</div>', unsafe_allow_html=True)
+        with col_refresh:
+            if st.button("&#128260;", key="refresh_atividades", help="Atualizar atividades"):
+                st.session_state.atividades_todas = []
+                st.session_state.atividades_has_more = True
+                st.session_state.atividades_loaded = False
                 st.rerun()
 
-        # Info sobre total carregado
-        total_str = f"Mostrando {len(atividades)} atividades"
-        if st.session_state.atividades_has_more:
-            total_str += " (role para carregar mais)"
-        st.caption(total_str)
-    else:
-        st.info("Nenhuma atividade hoje")
+        if "atividades_todas" not in st.session_state:
+            st.session_state.atividades_todas = []
+        if "atividades_has_more" not in st.session_state:
+            st.session_state.atividades_has_more = True
+        if "atividades_loaded" not in st.session_state:
+            st.session_state.atividades_loaded = False
 
-st.divider()
+        BATCH_SIZE = 20
+        if not st.session_state.atividades_loaded:
+            st.session_state.atividades_todas = get_atividades_recentes(
+                loja["loja_id"], limite=BATCH_SIZE, offset=0
+            )
+            st.session_state.atividades_has_more = len(st.session_state.atividades_todas) == BATCH_SIZE
+            st.session_state.atividades_loaded = True
 
-# ============================================
-# SECAO 4: ANALISES (Tabs)
-# ============================================
+        atividades = st.session_state.atividades_todas
 
-st.markdown("### Analises")
-
-tab1, tab2, tab3 = st.tabs(["Tendencia", "Por Origem", "Por Hora"])
-
-with tab1:
-    st.markdown("#### Tendencia de Leads")
-
-    # Filtros de data customizados
-    col_inicio, col_fim = st.columns(2)
-    with col_inicio:
-        data_inicio = st.date_input(
-            "Data inicial",
-            value=date.today() - timedelta(days=30),
-            max_value=date.today(),
-            key="data_inicio_tendencia"
-        )
-    with col_fim:
-        data_fim = st.date_input(
-            "Data final",
-            value=date.today(),
-            max_value=date.today(),
-            key="data_fim_tendencia"
-        )
-
-    # Validação
-    if data_inicio > data_fim:
-        st.error("Data inicial não pode ser maior que data final")
-        st.stop()
-
-    leads_dia = get_leads_por_dia(loja["loja_id"], data_inicio=data_inicio, data_fim=data_fim)
-
-    if leads_dia:
-        df_dia = pd.DataFrame(leads_dia)
-        df_dia["data"] = pd.to_datetime(df_dia["data"])
-
-        fig = px.line(
-            df_dia,
-            x="data",
-            y="total",
-            markers=True,
-            line_shape="spline"
-        )
-        fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            showlegend=False,
-            xaxis_title=None,
-            yaxis_title="Leads",
-            height=350,
-            margin=dict(l=0, r=0, t=20, b=0)
-        )
-        fig.update_traces(line_color="#d4a853", marker=dict(size=8, color="#d4a853"))
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Estatisticas
-        total_periodo = df_dia["total"].sum()
-        media_dia = df_dia["total"].mean()
-        st.caption(f"**Total:** {total_periodo} leads | **Media/dia:** {media_dia:.1f}")
-    else:
-        st.info("Nenhum lead no periodo")
-
-with tab2:
-    st.markdown("#### Leads por Origem")
-
-    # Filtros de data customizados
-    col_inicio, col_fim = st.columns(2)
-    with col_inicio:
-        data_inicio_origem = st.date_input(
-            "Data inicial",
-            value=date.today() - timedelta(days=30),
-            max_value=date.today(),
-            key="data_inicio_origem"
-        )
-    with col_fim:
-        data_fim_origem = st.date_input(
-            "Data final",
-            value=date.today(),
-            max_value=date.today(),
-            key="data_fim_origem"
-        )
-
-    # Validação
-    if data_inicio_origem > data_fim_origem:
-        st.error("Data inicial não pode ser maior que data final")
-        st.stop()
-
-    # Indicador de período anterior
-    duracao = (data_fim_origem - data_inicio_origem).days
-    periodo_anterior_inicio = data_inicio_origem - timedelta(days=duracao)
-    periodo_anterior_fim = data_inicio_origem - timedelta(days=1)
-    st.caption(
-        f"**Período atual:** {data_inicio_origem.strftime('%d/%m/%Y')} - "
-        f"{data_fim_origem.strftime('%d/%m/%Y')} ({duracao + 1} dias) | "
-        f"**Período anterior:** {periodo_anterior_inicio.strftime('%d/%m/%Y')} - "
-        f"{periodo_anterior_fim.strftime('%d/%m/%Y')}"
-    )
-
-    dados_origem = get_leads_por_origem_comparativo(loja["loja_id"], data_inicio=data_inicio_origem, data_fim=data_fim_origem)
-    atual = dados_origem["atual"]
-    anterior = dados_origem["anterior"]
-    total = sum(atual.values())
-
-    if total > 0:
-        # Cores fixas por origem
-        cores_origem = {
-            "WhatsApp Direto": "#d4a853",
-            "NaPista": "#6b7280",
-            "iCarros": "#4a90a4",
+        ICON_MAP = {
+            "novo_lead": "&#128229;",
+            "status_lead_alterado": "&#128260;",
+            "vendedor_adicionado": "&#10133;",
+            "vendedor_removido": "&#10060;",
+            "vendedor_inativado": "&#9199;",
+            "vendedor_reativado": "&#9654;&#65039;",
+            "fila_reordenada": "&#128256;",
         }
 
-        # Ordenar por quantidade (maior primeiro)
-        origens_ordenadas = sorted(atual.keys(), key=lambda o: atual[o], reverse=True)
+        if atividades:
+            atividades_html = []
+            for ativ in atividades:
+                timestamp = pd.to_datetime(ativ["criado_em"])
+                agora = pd.Timestamp.now(tz="America/Sao_Paulo")
+                minutos = int((agora - timestamp).total_seconds() / 60)
 
-        col_donut, col_metricas = st.columns([2, 1], gap="large")
+                if minutos < 60:
+                    tempo_str = f"ha {minutos} min"
+                elif minutos < 1440:
+                    tempo_str = f"ha {minutos // 60}h"
+                else:
+                    tempo_str = f"ha {minutos // 1440}d"
 
-        with col_donut:
-            labels = origens_ordenadas
-            values = [atual[o] for o in origens_ordenadas]
-            colors = [cores_origem.get(o, "#9ca3af") for o in origens_ordenadas]
+                icon = ICON_MAP.get(ativ.get("tipo", ""), "&#128196;")
 
-            fig = go.Figure(data=[go.Pie(
-                labels=labels,
-                values=values,
-                hole=0.5,
-                marker=dict(colors=colors),
-                textposition="inside",
-                textinfo="percent+label",
-                hovertemplate="%{label}<br>%{value} leads<br>%{percent}<extra></extra>",
-            )])
+                atividades_html.append(
+                    f'<div style="display:flex;align-items:flex-start;padding:10px 0;'
+                    f'border-bottom:1px solid {c["border"]};">'
+                    f'<div style="color:{c["primary"]};font-size:14px;margin-right:10px;'
+                    f'min-width:20px;text-align:center;">{icon}</div>'
+                    f'<div style="flex:1;">'
+                    f'<div style="color:{c["text_muted"]};font-size:13px;line-height:1.5;">'
+                    f'{ativ["descricao"]}</div>'
+                    f'<div style="color:{c["text_subtle"]};font-size:11px;margin-top:2px;">'
+                    f'{tempo_str}</div>'
+                    f'</div></div>'
+                )
 
+            if st.session_state.atividades_has_more:
+                atividades_html.append(
+                    f'<div id="load-more-trigger" style="padding:12px;text-align:center;'
+                    f'color:{c["primary"]};font-size:13px;font-weight:500;cursor:pointer;'
+                    f'border-top:1px solid {c["border"]};margin-top:8px;">Carregar mais &#8595;</div>'
+                )
+
+            html_code = f"""
+            <div id="atividades-container" style="max-height:360px;overflow-y:auto;padding-right:8px;">
+                {''.join(atividades_html)}
+            </div>
+            <style>
+            #atividades-container {{
+                scrollbar-width: thin;
+                scrollbar-color: {c["scrollbar_thumb"]} {c["scrollbar_track"]};
+            }}
+            #atividades-container::-webkit-scrollbar {{ width: 6px; }}
+            #atividades-container::-webkit-scrollbar-track {{
+                background: {c["scrollbar_track"]}; border-radius: 3px;
+            }}
+            #atividades-container::-webkit-scrollbar-thumb {{
+                background: {c["scrollbar_thumb"]}; border-radius: 3px;
+            }}
+            #atividades-container::-webkit-scrollbar-thumb:hover {{
+                background: {c["scrollbar_thumb_hover"]};
+            }}
+            </style>
+            <script>
+            const container = document.getElementById('atividades-container');
+            const trigger = document.getElementById('load-more-trigger');
+            if (container && trigger) {{
+                const observer = new IntersectionObserver((entries) => {{
+                    entries.forEach(entry => {{
+                        if (entry.isIntersecting) {{
+                            const buttons = window.parent.document.querySelectorAll('button[kind="secondary"]');
+                            const btn = Array.from(buttons).find(b => b.textContent.includes('Carregar mais'));
+                            if (btn) btn.click();
+                        }}
+                    }});
+                }}, {{ root: container, threshold: 0.1 }});
+                observer.observe(trigger);
+                trigger.addEventListener('click', () => {{
+                    const buttons = window.parent.document.querySelectorAll('button[kind="secondary"]');
+                    const btn = Array.from(buttons).find(b => b.textContent.includes('Carregar mais'));
+                    if (btn) btn.click();
+                }});
+            }}
+            </script>
+            """
+            st.components.v1.html(html_code, height=400, scrolling=False)
+
+            if st.session_state.atividades_has_more:
+                st.markdown(
+                    '<style>div[data-testid="column"] > div > button[kind="secondary"]'
+                    "{position:absolute;opacity:0;pointer-events:none;height:0;width:0;overflow:hidden;}</style>",
+                    unsafe_allow_html=True,
+                )
+                if st.button("Carregar mais atividades", key="carregar_mais_atividades_trigger", type="secondary"):
+                    novo_offset = len(st.session_state.atividades_todas)
+                    novas = get_atividades_recentes(loja["loja_id"], limite=BATCH_SIZE, offset=novo_offset)
+                    if novas:
+                        st.session_state.atividades_todas.extend(novas)
+                        st.session_state.atividades_has_more = len(novas) == BATCH_SIZE
+                    else:
+                        st.session_state.atividades_has_more = False
+                    st.rerun()
+
+            st.caption(f"Mostrando {len(atividades)} atividades")
+        else:
+            st.info("Nenhuma atividade registrada")
+
+st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+
+# ============================================
+# SECAO 3: ANALYTICS (grid, sem tabs)
+# ============================================
+
+st.markdown(f'<div style="color:{c["text"]};font-size:20px;font-weight:600;margin-bottom:16px;">Analises</div>', unsafe_allow_html=True)
+
+# --- ROW 1: Tendencia + Funil ---
+col_tendencia, col_funil = st.columns([1.4, 1], gap="medium")
+
+plotly_defaults = get_plotly_layout_defaults()
+
+with col_tendencia:
+    with st.container(border=True):
+        st.markdown(f'<div style="font-size:16px;font-weight:600;color:{c["text"]};margin-bottom:12px;">Tendencia de Leads</div>', unsafe_allow_html=True)
+
+        leads_dia = get_leads_por_dia(loja["loja_id"], data_inicio=data_inicio, data_fim=data_fim)
+
+        if leads_dia:
+            df_dia = pd.DataFrame(leads_dia)
+            df_dia["data"] = pd.to_datetime(df_dia["data"])
+
+            fig = px.line(df_dia, x="data", y="total", markers=True, line_shape="spline")
             fig.update_layout(
-                template="plotly_dark",
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
+                **plotly_defaults,
                 showlegend=False,
-                height=350,
-                margin=dict(l=0, r=0, t=20, b=0),
-                annotations=[
-                    dict(
-                        text=f"<b>{total}</b><br><span style='font-size:12px'>Leads<br>Totais</span>",
-                        x=0.5, y=0.5,
-                        font=dict(size=24, color="white"),
-                        showarrow=False,
-                    )
-                ],
+                xaxis_title=None,
+                yaxis_title="Leads",
+                height=280,
+                margin=dict(l=0, r=0, t=10, b=0),
+            )
+            fig.update_traces(line_color=c["primary"], marker=dict(size=7, color=c["primary"]))
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Stats inline
+            total_t = df_dia["total"].sum()
+            media_t = df_dia["total"].mean()
+            pico_row = df_dia.loc[df_dia["total"].idxmax()]
+            pico_data = pico_row["data"].strftime("%d/%m")
+
+            s1, s2, s3 = st.columns(3)
+            with s1:
+                st.metric("Total", total_t)
+            with s2:
+                st.metric("Media/dia", f"{media_t:.1f}")
+            with s3:
+                st.metric("Dia de Pico", f"{pico_data} ({int(pico_row['total'])})")
+        else:
+            st.info("Nenhum lead no periodo")
+
+with col_funil:
+    with st.container(border=True):
+        st.markdown(f'<div style="font-size:16px;font-weight:600;color:{c["text"]};margin-bottom:12px;">Funil de Vendas</div>', unsafe_allow_html=True)
+
+        metricas_funil = get_metricas_funil(loja["loja_id"], data_inicio=data_inicio, data_fim=data_fim)
+
+        novo = metricas_funil["novo"]
+        atendido = metricas_funil["atendido"]
+        negociando = metricas_funil["negociando"]
+        venda = metricas_funil["venda_concretizada"]
+        desistiu = metricas_funil["desistiu"]
+
+        taxa_atendimento = (atendido / novo * 100) if novo > 0 else 0
+        taxa_negociacao = (negociando / atendido * 100) if atendido > 0 else 0
+        taxa_venda = (venda / negociando * 100) if negociando > 0 else 0
+
+        f1, f2, f3 = st.columns(3)
+        with f1:
+            st.metric("% Atendidos", f"{taxa_atendimento:.0f}%")
+        with f2:
+            st.metric("% Negociando", f"{taxa_negociacao:.0f}%")
+        with f3:
+            st.metric("% Vendas", f"{taxa_venda:.0f}%")
+
+        if novo > 0:
+            stages = ["Novo", "Atendido", "Negociando", "Venda"]
+            values = [novo, atendido, negociando, venda]
+
+            fig = go.Figure(go.Funnel(
+                y=stages,
+                x=values,
+                textposition="inside",
+                textinfo="value+percent initial",
+                marker=dict(
+                    color=[c["primary"], c["primary_dark"], "#b45309", "#92400e"],
+                    line=dict(width=2, color=c["background"]),
+                ),
+                connector={"line": {"color": c["border"], "width": 2}},
+            ))
+            fig.update_layout(
+                **plotly_defaults,
+                height=250,
+                margin=dict(l=0, r=0, t=10, b=0),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Sem dados para funil")
+
+# --- ROW 2: Origem + Hora ---
+col_origem, col_hora = st.columns(2, gap="medium")
+
+with col_origem:
+    with st.container(border=True):
+        st.markdown(f'<div style="font-size:16px;font-weight:600;color:{c["text"]};margin-bottom:12px;">Leads por Origem</div>', unsafe_allow_html=True)
+
+        dados_origem = get_leads_por_origem_comparativo(loja["loja_id"], data_inicio=data_inicio, data_fim=data_fim)
+        atual = dados_origem["atual"]
+        total_orig = sum(atual.values())
+
+        if total_orig > 0:
+            origens_sorted = sorted(atual.keys(), key=lambda o: atual[o], reverse=True)
+            labels = origens_sorted
+            values = [atual[o] for o in origens_sorted]
+            cores = [c["primary"], c["primary_dark"], c["text_subtle"]]
+
+            fig = go.Figure(go.Bar(
+                y=labels,
+                x=values,
+                orientation="h",
+                marker=dict(color=cores[:len(labels)]),
+                text=values,
+                textposition="auto",
+            ))
+            fig.update_layout(
+                **plotly_defaults,
+                showlegend=False,
+                height=250,
+                margin=dict(l=0, r=20, t=10, b=0),
+                xaxis_title=None,
+                yaxis_title=None,
+                yaxis=dict(autorange="reversed"),
             )
             st.plotly_chart(fig, use_container_width=True)
 
-        with col_metricas:
-            for origem in origens_ordenadas:
-                qtd_atual = atual[origem]
-                qtd_anterior = anterior.get(origem, 0)
-                delta = qtd_atual - qtd_anterior
-                share = (qtd_atual / total) * 100
+            # Deltas vs periodo anterior
+            anterior = dados_origem["anterior"]
+            delta_parts = []
+            for o in origens_sorted:
+                d = atual[o] - anterior.get(o, 0)
+                sinal = "+" if d > 0 else ""
+                delta_parts.append(f"{o}: {sinal}{d}")
+            st.caption(f"vs periodo anterior: {' | '.join(delta_parts)}")
+        else:
+            st.info("Sem dados no periodo")
 
-                st.metric(
-                    label=origem,
-                    value=qtd_atual,
-                    delta=delta,
-                    delta_color="normal",
-                    help=f"{share:.0f}% do total de leads no periodo",
-                )
-    else:
-        st.info("Sem dados no periodo")
+with col_hora:
+    with st.container(border=True):
+        st.markdown(f'<div style="font-size:16px;font-weight:600;color:{c["text"]};margin-bottom:12px;">Leads por Hora</div>', unsafe_allow_html=True)
 
-with tab3:
-    st.markdown("#### Horarios de Maior Volume")
+        leads_hora = get_leads_por_hora(loja["loja_id"], data_inicio=data_inicio, data_fim=data_fim)
 
-    # Filtros de data customizados
-    col_inicio, col_fim = st.columns(2)
-    with col_inicio:
-        data_inicio_hora = st.date_input(
-            "Data inicial",
-            value=date.today() - timedelta(days=30),
-            max_value=date.today(),
-            key="data_inicio_hora"
-        )
-    with col_fim:
-        data_fim_hora = st.date_input(
-            "Data final",
-            value=date.today(),
-            max_value=date.today(),
-            key="data_fim_hora"
-        )
+        if leads_hora:
+            df_hora = pd.DataFrame(leads_hora)
 
-    # Validação
-    if data_inicio_hora > data_fim_hora:
-        st.error("Data inicial não pode ser maior que data final")
-        st.stop()
+            fig = px.bar(
+                df_hora,
+                x="hora_formatada",
+                y="total",
+                color="total",
+                color_continuous_scale=[
+                    [0, c["surface"]],
+                    [0.5, c["primary"]],
+                    [1, c["primary_light"]],
+                ],
+                text="total",
+            )
+            fig.update_layout(
+                **plotly_defaults,
+                showlegend=False,
+                coloraxis_showscale=False,
+                height=250,
+                margin=dict(l=0, r=0, t=10, b=0),
+                xaxis_title=None,
+                yaxis_title=None,
+                xaxis=dict(tickangle=-45, tickmode="linear"),
+            )
+            fig.update_traces(textposition="outside")
+            st.plotly_chart(fig, use_container_width=True)
 
-    leads_hora = get_leads_por_hora(loja["loja_id"], data_inicio=data_inicio_hora, data_fim=data_fim_hora)
-
-    if leads_hora:
-        df_hora = pd.DataFrame(leads_hora)
-
-        fig = px.bar(
-            df_hora,
-            x="hora_formatada",
-            y="total",
-            color="total",
-            color_continuous_scale=[[0, "#272b33"], [0.5, "#d4a853"], [1, "#f5d78e"]],
-            text="total"
-        )
-        fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            showlegend=False,
-            xaxis_title="Hora do Dia",
-            yaxis_title="Total de Leads",
-            height=350,
-            margin=dict(l=0, r=0, t=20, b=0),
-            xaxis=dict(tickangle=-45, tickmode="linear")
-        )
-        fig.update_traces(textposition="outside")
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Estatisticas
-        hora_pico = df_hora.loc[df_hora["total"].idxmax()]
-        st.caption(f"**Horario de Pico:** {hora_pico['hora_formatada']} com {int(hora_pico['total'])} leads")
-    else:
-        st.info("Sem dados no periodo")
-
-st.divider()
-
-# ============================================
-# SECAO 5: FUNIL DE CONVERSAO
-# ============================================
-
-st.markdown("### Funil de Vendas")
-
-# Filtros de data customizados
-col_inicio_funil, col_fim_funil = st.columns(2)
-with col_inicio_funil:
-    data_inicio_funil = st.date_input(
-        "Data inicial",
-        value=date.today() - timedelta(days=30),
-        max_value=date.today(),
-        key="data_inicio_funil"
-    )
-with col_fim_funil:
-    data_fim_funil = st.date_input(
-        "Data final",
-        value=date.today(),
-        max_value=date.today(),
-        key="data_fim_funil"
-    )
-
-# Validação
-if data_inicio_funil > data_fim_funil:
-    st.error("Data inicial não pode ser maior que data final")
-else:
-    metricas_funil = get_metricas_funil(loja["loja_id"], data_inicio=data_inicio_funil, data_fim=data_fim_funil)
-
-    novo = metricas_funil["novo"]
-    atendido = metricas_funil["atendido"]
-    negociando = metricas_funil["negociando"]
-    venda = metricas_funil["venda_concretizada"]
-    desistiu = metricas_funil["desistiu"]
-
-    # Calcular % de conversão
-    taxa_atendimento = (atendido / novo * 100) if novo > 0 else 0
-    taxa_negociacao = (negociando / atendido * 100) if atendido > 0 else 0
-    taxa_venda = (venda / negociando * 100) if negociando > 0 else 0
-    taxa_desistencia = (desistiu / novo * 100) if novo > 0 else 0
-
-    # Cards de conversão
-    col1, col2, col3, col4 = st.columns(4, gap="medium")
-
-    with col1:
-        st.metric(
-            label="% Atendidos",
-            value=f"{taxa_atendimento:.1f}%",
-            help=f"{atendido} de {novo} leads foram atendidos"
-        )
-
-    with col2:
-        st.metric(
-            label="% Negociando",
-            value=f"{taxa_negociacao:.1f}%",
-            help=f"{negociando} de {atendido} atendidos entraram em negociação"
-        )
-
-    with col3:
-        st.metric(
-            label="% Vendas",
-            value=f"{taxa_venda:.1f}%",
-            help=f"{venda} de {negociando} negociações viraram venda"
-        )
-
-    with col4:
-        st.metric(
-            label="% Desistência",
-            value=f"{taxa_desistencia:.1f}%",
-            delta=f"-{taxa_desistencia:.1f}%",
-            delta_color="inverse",
-            help=f"{desistiu} de {novo} leads desistiram"
-        )
-
-    st.markdown("####")
-
-    # Gráfico de funil
-    if novo > 0:
-        # Dados do funil (excluir desistiu)
-        stages = ["Novo", "Atendido", "Negociando", "Venda"]
-        values = [novo, atendido, negociando, venda]
-
-        # Criar gráfico de funil
-        fig = go.Figure(go.Funnel(
-            y=stages,
-            x=values,
-            textposition="inside",
-            textinfo="value+percent initial",
-            marker=dict(
-                color=["#d4a853", "#b8922e", "#9a7825", "#7c5f1e"],
-                line=dict(width=2, color="#111318")
-            ),
-            connector={"line": {"color": "#4b5563", "width": 2}},
-            hovertemplate="<b>%{y}</b><br>%{x} leads<br>%{percentInitial} do total<extra></extra>"
-        ))
-
-        fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            height=400,
-            margin=dict(l=0, r=0, t=20, b=0)
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Estatísticas resumidas
-        st.caption(
-            f"**Total de leads:** {novo} | "
-            f"**Conversão final (novo → venda):** {(venda / novo * 100):.1f}% | "
-            f"**Taxa de desistência:** {taxa_desistencia:.1f}%"
-        )
-    else:
-        st.info("Sem dados no período selecionado")
+            hora_pico = df_hora.loc[df_hora["total"].idxmax()]
+            st.caption(f"Pico: {hora_pico['hora_formatada']} ({int(hora_pico['total'])} leads)")
+        else:
+            st.info("Sem dados no periodo")
 
 # Footer
 st.divider()
-st.caption("**Dica:** Use os filtros de periodo para ajustar as analises. Acesse 'Leads' para gerenciar status.")
+st.caption("Use os filtros de data no topo para ajustar todas as analises.")

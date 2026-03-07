@@ -5,6 +5,7 @@ import streamlit as st
 import pandas as pd
 from utils.ui import render_page_header, loading_spinner, success_message, error_message, info_message, inject_global_css
 from utils.auth import obter_loja_logada
+from utils.theme import get_colors
 from utils.queries import (
     listar_gerentes,
     adicionar_gerente,
@@ -20,6 +21,36 @@ render_page_header("Gerentes")
 
 # CSS global
 inject_global_css()
+
+_c = get_colors()
+st.components.v1.html(f"""
+<script>
+(function() {{
+    function colorButtons() {{
+        var doc = window.parent.document;
+        var buttons = doc.querySelectorAll('button[data-testid="stBaseButton-secondary"]');
+        buttons.forEach(function(btn) {{
+            var icon = btn.querySelector('span[data-testid="stIconMaterial"]');
+            if (!icon) return;
+            var text = icon.textContent.trim();
+            var color = '';
+            if (text === 'edit') color = '{_c["primary"]}';
+            else if (text === 'pause') color = '{_c["warning"]}';
+            else if (text === 'delete') color = '{_c["error"]}';
+            if (color) {{
+                btn.style.borderColor = color;
+                btn.style.color = color;
+                btn.onmouseenter = function() {{ btn.style.backgroundColor = color + '22'; }};
+                btn.onmouseleave = function() {{ btn.style.backgroundColor = 'transparent'; }};
+            }}
+        }});
+    }}
+    setTimeout(colorButtons, 500);
+    setTimeout(colorButtons, 1500);
+    setTimeout(colorButtons, 3000);
+}})();
+</script>
+""", height=0)
 
 loja = obter_loja_logada()
 

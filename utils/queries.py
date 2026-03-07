@@ -800,6 +800,15 @@ def get_fila_distribuicao(loja_id: str) -> List[Dict[str, Any]]:
     return fila
 
 
+def get_limite_leads(loja_id: str) -> Optional[int]:
+    """Retorna limite de leads do plano. None = ilimitado."""
+    supabase = get_cached_supabase_client()
+    response = supabase.table("lojas").select("limite_leads").eq("id", loja_id).execute()
+    if response.data:
+        return response.data[0].get("limite_leads")
+    return None
+
+
 def get_metricas_funil(
     loja_id: str,
     dias: Optional[int] = None,
