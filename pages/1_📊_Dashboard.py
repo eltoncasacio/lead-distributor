@@ -23,25 +23,33 @@ from utils.queries import (
     get_limite_leads,
 )
 
-# Header compacto
 render_page_header("Dashboard")
 inject_global_css()
 
 loja = obter_loja_logada()
 c = get_colors()
+plotly_defaults = get_plotly_layout_defaults()
 
 # ============================================
 # HEADER BAR: filtro de data + total de leads
 # ============================================
 
-col_filter1, col_filter2, col_spacer, col_total = st.columns([1.5, 1.5, 3, 2], gap="small")
+with loading_spinner("Carregando metricas..."):
+    metricas = get_metricas_hoje(loja["loja_id"])
+    vendedores = listar_vendedores(loja["loja_id"])
+    proximo = obter_proximo_vendedor(loja["loja_id"])
+    limite = get_limite_leads(loja["loja_id"])
+
+vendedores_ativos = [v for v in vendedores if v["status"] == "ativo"]
+
+col_filter1, col_filter2, col_total = st.columns([1.5, 1.5, 5], gap="small")
 
 with col_filter1:
     data_inicio = st.date_input(
         "De",
         value=date.today() - timedelta(days=30),
         max_value=date.today(),
-        key="data_inicio_global"
+        key="data_inicio_global",
     )
 
 with col_filter2:
@@ -49,60 +57,44 @@ with col_filter2:
         "Ate",
         value=date.today(),
         max_value=date.today(),
-        key="data_fim_global"
+        key="data_fim_global",
     )
 
 if data_inicio > data_fim:
     st.error("Data inicial nao pode ser maior que data final")
     st.stop()
 
-# Total de leads do periodo + limite do plano
+leads_periodo = get_leads_por_dia(loja["loja_id"], data_inicio=data_inicio, data_fim=data_fim)
+total_periodo = sum(d["total"] for d in leads_periodo) if leads_periodo else 0
+
 with col_total:
-    limite = get_limite_leads(loja["loja_id"])
-    leads_periodo = get_leads_por_dia(loja["loja_id"], data_inicio=data_inicio, data_fim=data_fim)
-    total_periodo = sum(d["total"] for d in leads_periodo) if leads_periodo else 0
-    if limite:
-        st.markdown(
-            f'<div style="text-align:right;padding-top:28px;">'
-            f'<span style="color:{c["text_muted"]};font-size:13px;">Total de Leads</span><br>'
-            f'<span style="color:{c["primary"]};font-size:24px;font-weight:700;">{total_periodo}</span>'
-            f'<span style="color:{c["text_subtle"]};font-size:16px;">/{limite}</span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            f'<div style="text-align:right;padding-top:28px;">'
-            f'<span style="color:{c["text_muted"]};font-size:13px;">Total de Leads</span><br>'
-            f'<span style="color:{c["primary"]};font-size:24px;font-weight:700;">{total_periodo}</span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
+    total_txt = f"{total_periodo}/{limite}" if limite else str(total_periodo)
+    st.markdown(
+        f'<div style="padding-top:28px;">'
+        f'<span style="color:{c["text_muted"]};font-size:14px;">Total de Leads: </span>'
+        f'<span style="color:{c["text"]};font-size:14px;font-weight:600;">{total_txt}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 # ============================================
-# SECAO 1: KPI CARDS
+# SECAO 1: KPI CARDS (icone top-left, texto left-aligned)
 # ============================================
 
-with loading_spinner("Carregando metricas..."):
-    metricas = get_metricas_hoje(loja["loja_id"])
-    vendedores = listar_vendedores(loja["loja_id"])
-    proximo = obter_proximo_vendedor(loja["loja_id"])
-
-vendedores_ativos = [v for v in vendedores if v["status"] == "ativo"]
+MESES_PT = {1:"Jan",2:"Fev",3:"Mar",4:"Abr",5:"Mai",6:"Jun",7:"Jul",8:"Ago",9:"Set",10:"Out",11:"Nov",12:"Dez"}
 
 
-def render_kpi_card(icon: str, label: str, value, subtitle: str = ""):
-    sub_html = f'<div style="color:{c["text_subtle"]};font-size:12px;margin-top:2px;">{subtitle}</div>' if subtitle else ""
+def render_kpi_card(icon_html: str, label: str, value, subtitle: str = ""):
+    sub = f'<div style="color:{c["text_subtle"]};font-size:12px;margin-top:4px;">{subtitle}</div>' if subtitle else ""
     st.markdown(
         f"""
         <div style="background:{c["surface"]};border:1px solid {c["border"]};border-radius:12px;
-                    padding:20px;text-align:center;">
-            <div style="font-size:28px;margin-bottom:4px;">{icon}</div>
-            <div style="color:{c["text_muted"]};font-size:12px;text-transform:uppercase;
+                    padding:20px 20px 16px 20px;">
+            <div style="font-size:24px;margin-bottom:8px;">{icon_html}</div>
+            <div style="color:{c["text_muted"]};font-size:11px;text-transform:uppercase;
                         letter-spacing:0.5px;">{label}</div>
-            <div style="color:{c["text"]};font-size:28px;font-weight:700;margin:4px 0;">{value}</div>
-            {sub_html}
+            <div style="color:{c["text"]};font-size:28px;font-weight:700;margin:2px 0;">{value}</div>
+            {sub}
         </div>
         """,
         unsafe_allow_html=True,
@@ -113,39 +105,36 @@ kpi1, kpi2, kpi3, kpi4 = st.columns(4, gap="medium")
 
 with kpi1:
     render_kpi_card(
-        icon="&#128229;",
-        label="Leads Hoje",
-        value=metricas["total_leads"],
-        subtitle="recebidos hoje",
+        f'<span style="background:{c["surface_hover"]};padding:6px 8px;border-radius:8px;">&#128101;</span>',
+        "Leads Hoje",
+        metricas["total_leads"],
     )
 
 with kpi2:
-    ultimo = metricas["ultimo_lead"] if metricas["ultimo_lead"] else "---"
+    ultimo = metricas["ultimo_lead"] if metricas["ultimo_lead"] else "--"
     render_kpi_card(
-        icon="&#128340;",
-        label="Ultimo Lead",
-        value=ultimo,
-        subtitle="horario",
+        f'<span style="background:{c["surface_hover"]};padding:6px 8px;border-radius:8px;">&#128339;</span>',
+        "Ultimo Lead Recebido",
+        ultimo,
+        f"tooltip: {metricas.get('proximo_vendedor','')}" if metricas["ultimo_lead"] else "",
     )
 
 with kpi3:
     proximo_nome = proximo["nome"] if proximo else "Nenhum"
     render_kpi_card(
-        icon="&#128100;",
-        label="Proximo na Fila",
-        value=proximo_nome,
-        subtitle="recebe o proximo lead",
+        f'<span style="background:{c["primary"]}22;color:{c["primary"]};padding:6px 8px;border-radius:8px;">&#128100;</span>',
+        "Proximo Vendedor na Fila",
+        proximo_nome,
     )
 
 with kpi4:
     render_kpi_card(
-        icon="&#128101;",
-        label="Vendedores Ativos",
-        value=len(vendedores_ativos),
-        subtitle=f"de {len(vendedores)} total",
+        f'<span style="background:{c["surface_hover"]};padding:6px 8px;border-radius:8px;">&#128101;</span>',
+        "Vendedores Ativos",
+        len(vendedores_ativos),
     )
 
-st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+st.markdown("")
 
 # ============================================
 # SECAO 2: FILA + ATIVIDADES (lado a lado)
@@ -155,138 +144,159 @@ col_fila, col_atividades = st.columns([1.2, 1], gap="medium")
 
 # --- FILA DE DISTRIBUICAO ---
 with col_fila:
+    # CSS para tornar a borda deste container amber
     st.markdown(
-        f"""
-        <div style="background:{c["surface"]};border:1px solid {c["primary"]};border-radius:12px;
-                    padding:20px;min-height:420px;">
-            <div style="color:{c["text"]};font-size:18px;font-weight:600;margin-bottom:16px;">
-                Fila de Distribuicao
-            </div>
-        """,
+        f"""<style>
+        /* Amber border no primeiro container dentro da coluna da fila */
+        [data-testid="stVerticalBlock"] > div:nth-child(1) > [data-testid="stVerticalBlockBorderWrapper"] {{
+            border-color: {c["primary"]} !important;
+        }}
+        </style>""",
         unsafe_allow_html=True,
     )
 
-    if len(vendedores_ativos) > 1:
-        vendedores_ativos_sorted = sorted(vendedores_ativos, key=lambda x: x["criado_em"])
-
-        if proximo:
-            idx = next((i for i, v in enumerate(vendedores_ativos_sorted) if v["id"] == proximo["id"]), 0)
-            vendedores_ativos_sorted = vendedores_ativos_sorted[idx:] + vendedores_ativos_sorted[:idx]
-
-        ordem_original_ids = [v["id"] for v in vendedores_ativos_sorted]
-        if "ordem_original_dashboard" not in st.session_state:
-            st.session_state.ordem_original_dashboard = ordem_original_ids
-
-        nomes = [v["nome"] for v in vendedores_ativos_sorted]
-        usar_horizontal = len(nomes) <= 8
-
+    with st.container(border=True):
         st.markdown(
-            f'<div style="display:inline-block;background:{c["primary"]};color:#000;'
-            f'font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;'
-            f'margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">PROXIMO</div>',
+            f'<div style="color:{c["text"]};font-size:18px;font-weight:600;margin-bottom:8px;">'
+            f'Fila de Distribuicao</div>',
             unsafe_allow_html=True,
         )
 
-        nova_ordem_nomes = sort_items(
-            nomes,
-            multi_containers=False,
-            direction="horizontal" if usar_horizontal else "vertical",
-            key="reorder_vendedores_dashboard",
-            custom_style=get_sortable_style(horizontal=usar_horizontal),
-        )
+        if len(vendedores_ativos) >= 1:
+            vendedores_ativos_sorted = sorted(vendedores_ativos, key=lambda x: x["criado_em"])
 
-        # JS: destacar primeiro item com gradient amber
-        st.components.v1.html(f"""
-        <script>
-        (function() {{
-            function styleFirst() {{
-                try {{
-                    var frames = window.parent.document.querySelectorAll('iframe');
-                    for (var i = 0; i < frames.length; i++) {{
-                        try {{
-                            var doc = frames[i].contentDocument;
-                            if (!doc) continue;
-                            var items = doc.querySelectorAll('li');
-                            if (items.length < 2) continue;
-                            for (var j = 0; j < items.length; j++) {{
-                                if (j === 0) {{
-                                    items[j].style.background = 'linear-gradient(135deg, {c["primary"]}, {c["primary_dark"]})';
-                                    items[j].style.color = '#000';
-                                    items[j].style.fontWeight = '700';
-                                    items[j].style.border = 'none';
-                                }} else {{
-                                    items[j].style.background = '{c["surface"]}';
-                                    items[j].style.color = '{c["text"]}';
-                                    items[j].style.fontWeight = '500';
-                                    items[j].style.border = '1px solid {c["border"]}';
+            if proximo:
+                idx = next((i for i, v in enumerate(vendedores_ativos_sorted) if v["id"] == proximo["id"]), 0)
+                vendedores_ativos_sorted = vendedores_ativos_sorted[idx:] + vendedores_ativos_sorted[:idx]
+
+            ordem_original_ids = [v["id"] for v in vendedores_ativos_sorted]
+            if "ordem_original_dashboard" not in st.session_state:
+                st.session_state.ordem_original_dashboard = ordem_original_ids
+
+            nomes = [v["nome"] for v in vendedores_ativos_sorted]
+
+            # Sortable vertical com estilo customizado
+            sortable_style = f"""
+                background-color: {c["surface"]};
+                border: 1px solid {c["border"]};
+                border-radius: 8px;
+                padding: 14px 16px;
+                margin: 6px 0;
+                color: {c["text"]};
+                font-weight: 500;
+                font-size: 15px;
+                cursor: grab;
+                transition: all 0.15s ease;
+                list-style: none;
+            """
+
+            nova_ordem_nomes = sort_items(
+                nomes,
+                multi_containers=False,
+                direction="vertical",
+                key="reorder_vendedores_dashboard",
+                custom_style=sortable_style,
+            )
+
+            # JS: numerar itens, badge NEXT no primeiro, styling amber
+            st.components.v1.html(f"""
+            <script>
+            (function() {{
+                function styleItems() {{
+                    try {{
+                        var frames = window.parent.document.querySelectorAll('iframe');
+                        for (var i = 0; i < frames.length; i++) {{
+                            try {{
+                                var doc = frames[i].contentDocument;
+                                if (!doc) continue;
+                                var items = doc.querySelectorAll('li');
+                                if (items.length < 1) continue;
+                                for (var j = 0; j < items.length; j++) {{
+                                    var li = items[j];
+                                    // Remover numeracao/badge anterior (evitar duplicatas)
+                                    var old = li.querySelectorAll('.q-num,.q-badge');
+                                    old.forEach(function(el) {{ el.remove(); }});
+
+                                    li.style.position = 'relative';
+                                    li.style.paddingLeft = '44px';
+                                    li.style.paddingRight = '16px';
+
+                                    // Numero
+                                    var num = document.createElement('span');
+                                    num.className = 'q-num';
+                                    num.textContent = (j+1);
+                                    num.style.cssText = 'position:absolute;left:14px;top:50%;transform:translateY(-50%);color:{c["text_muted"]};font-weight:600;font-size:15px;';
+                                    li.insertBefore(num, li.firstChild);
+
+                                    if (j === 0) {{
+                                        li.style.background = '{c["surface"]}';
+                                        li.style.border = '1px solid {c["primary"]}';
+                                        li.style.fontWeight = '700';
+                                        // Badge NEXT
+                                        var badge = document.createElement('span');
+                                        badge.className = 'q-badge';
+                                        badge.textContent = 'NEXT';
+                                        badge.style.cssText = 'position:absolute;right:12px;top:50%;transform:translateY(-50%);background:{c["primary"]};color:#000;font-size:11px;font-weight:700;padding:3px 10px;border-radius:4px;letter-spacing:0.5px;';
+                                        li.appendChild(badge);
+                                    }} else {{
+                                        li.style.background = '{c["surface"]}';
+                                        li.style.border = '1px solid {c["border"]}';
+                                        li.style.fontWeight = '500';
+                                    }}
                                 }}
-                            }}
-                            var parent = items[0].parentElement;
-                            if (parent && !parent._obs) {{
-                                parent._obs = true;
-                                new MutationObserver(function() {{
-                                    setTimeout(styleFirst, 50);
-                                }}).observe(parent, {{childList: true, subtree: true}});
-                            }}
-                        }} catch(e) {{}}
-                    }}
-                }} catch(e) {{}}
-            }}
-            setTimeout(styleFirst, 300);
-            setTimeout(styleFirst, 800);
-            setTimeout(styleFirst, 1500);
-        }})();
-        </script>
-        """, height=0)
+                                var parent = items[0].parentElement;
+                                if (parent && !parent._obs) {{
+                                    parent._obs = true;
+                                    new MutationObserver(function() {{
+                                        setTimeout(styleItems, 50);
+                                    }}).observe(parent, {{childList: true, subtree: true}});
+                                }}
+                            }} catch(e) {{}}
+                        }}
+                    }} catch(e) {{}}
+                }}
+                setTimeout(styleItems, 300);
+                setTimeout(styleItems, 800);
+                setTimeout(styleItems, 1500);
+            }})();
+            </script>
+            """, height=0)
 
-        st.caption("Arraste para reordenar a fila")
+            st.caption("Arraste para reordenar a fila")
 
-        nova_ordem_ids = []
-        for nome in nova_ordem_nomes:
-            vendedor = next((v for v in vendedores_ativos_sorted if v["nome"] == nome), None)
-            if vendedor:
-                nova_ordem_ids.append(vendedor["id"])
+            # Detectar mudanca e auto-save
+            nova_ordem_ids = []
+            for nome in nova_ordem_nomes:
+                vendedor = next((v for v in vendedores_ativos_sorted if v["nome"] == nome), None)
+                if vendedor:
+                    nova_ordem_ids.append(vendedor["id"])
 
-        ordem_mudou = nova_ordem_ids != st.session_state.ordem_original_dashboard
+            ordem_mudou = nova_ordem_ids != st.session_state.ordem_original_dashboard
 
-        if ordem_mudou and len(nova_ordem_ids) == len(vendedores_ativos):
-            try:
-                reordenar_vendedores(loja["loja_id"], nova_ordem_ids)
-                st.session_state.ordem_original_dashboard = nova_ordem_ids
-                st.session_state.atividades_loaded = False
-                st.rerun()
-            except Exception as e:
-                error_message(f"Erro ao salvar: {str(e)}")
+            if ordem_mudou and len(nova_ordem_ids) == len(vendedores_ativos):
+                try:
+                    reordenar_vendedores(loja["loja_id"], nova_ordem_ids)
+                    st.session_state.ordem_original_dashboard = nova_ordem_ids
+                    st.session_state.atividades_loaded = False
+                    st.rerun()
+                except Exception as e:
+                    error_message(f"Erro ao salvar: {str(e)}")
 
-    elif len(vendedores_ativos) == 1:
-        vendedor = vendedores_ativos[0]
-        st.markdown(
-            f'<div style="display:inline-block;background:{c["primary"]};color:#000;'
-            f'font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;'
-            f'margin-bottom:8px;text-transform:uppercase;">PROXIMO</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            f'<div style="background:linear-gradient(135deg,{c["primary"]},{c["primary_dark"]});'
-            f'color:#000;padding:10px 18px;border-radius:8px;font-weight:700;'
-            f'font-size:14px;display:inline-block;">{vendedor["nome"]}</div>',
-            unsafe_allow_html=True,
-        )
-        st.caption("Apenas 1 vendedor ativo.")
-    else:
-        st.warning("Nenhum vendedor ativo.")
-
-    # Fechar div do container amber
-    st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.warning("Nenhum vendedor ativo.")
 
 # --- ATIVIDADES RECENTES ---
 with col_atividades:
     with st.container(border=True):
         col_header, col_refresh = st.columns([5, 1])
         with col_header:
-            st.markdown(f'<div style="font-size:18px;font-weight:600;color:{c["text"]};">Atividades Recentes</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div style="font-size:18px;font-weight:600;color:{c["text"]};">'
+                f'Atividades Recentes</div>',
+                unsafe_allow_html=True,
+            )
         with col_refresh:
-            if st.button("&#128260;", key="refresh_atividades", help="Atualizar atividades"):
+            if st.button("&#128260;", key="refresh_atividades", help="Atualizar"):
                 st.session_state.atividades_todas = []
                 st.session_state.atividades_has_more = True
                 st.session_state.atividades_loaded = False
@@ -309,6 +319,7 @@ with col_atividades:
 
         atividades = st.session_state.atividades_todas
 
+        # Icones SVG-like por tipo de atividade
         ICON_MAP = {
             "novo_lead": "&#128229;",
             "status_lead_alterado": "&#128260;",
@@ -321,29 +332,41 @@ with col_atividades:
 
         if atividades:
             atividades_html = []
-            for ativ in atividades:
+            for i, ativ in enumerate(atividades):
                 timestamp = pd.to_datetime(ativ["criado_em"])
                 agora = pd.Timestamp.now(tz="America/Sao_Paulo")
                 minutos = int((agora - timestamp).total_seconds() / 60)
 
-                if minutos < 60:
-                    tempo_str = f"ha {minutos} min"
+                if minutos < 1:
+                    tempo_str = "Agora"
+                elif minutos < 60:
+                    tempo_str = f"Ha {minutos} minutos"
                 elif minutos < 1440:
-                    tempo_str = f"ha {minutos // 60}h"
+                    tempo_str = f"Ha {minutos // 60} horas"
                 else:
-                    tempo_str = f"ha {minutos // 1440}d"
+                    tempo_str = f"Ha {minutos // 1440} dias"
 
                 icon = ICON_MAP.get(ativ.get("tipo", ""), "&#128196;")
+                # Dot color: amber for first, gray for rest
+                dot_color = c["primary"] if i == 0 else c["text_subtle"]
 
                 atividades_html.append(
-                    f'<div style="display:flex;align-items:flex-start;padding:10px 0;'
+                    f'<div style="display:flex;align-items:flex-start;padding:12px 0;'
                     f'border-bottom:1px solid {c["border"]};">'
-                    f'<div style="color:{c["primary"]};font-size:14px;margin-right:10px;'
-                    f'min-width:20px;text-align:center;">{icon}</div>'
+                    # Icon
+                    f'<div style="font-size:16px;margin-right:12px;min-width:24px;text-align:center;'
+                    f'margin-top:2px;">{icon}</div>'
+                    # Dot connector
+                    f'<div style="display:flex;flex-direction:column;align-items:center;margin-right:12px;'
+                    f'min-width:12px;padding-top:6px;">'
+                    f'<div style="width:8px;height:8px;border-radius:50%;background:{dot_color};"></div>'
+                    f'<div style="width:1px;height:24px;background:{c["border"]};margin-top:4px;"></div>'
+                    f'</div>'
+                    # Content
                     f'<div style="flex:1;">'
-                    f'<div style="color:{c["text_muted"]};font-size:13px;line-height:1.5;">'
+                    f'<div style="color:{c["text"]};font-size:13px;line-height:1.5;font-weight:500;">'
                     f'{ativ["descricao"]}</div>'
-                    f'<div style="color:{c["text_subtle"]};font-size:11px;margin-top:2px;">'
+                    f'<div style="color:{c["text_subtle"]};font-size:11px;margin-top:3px;">'
                     f'{tempo_str}</div>'
                     f'</div></div>'
                 )
@@ -356,7 +379,7 @@ with col_atividades:
                 )
 
             html_code = f"""
-            <div id="atividades-container" style="max-height:360px;overflow-y:auto;padding-right:8px;">
+            <div id="atividades-container" style="max-height:380px;overflow-y:auto;padding-right:8px;">
                 {''.join(atividades_html)}
             </div>
             <style>
@@ -370,9 +393,6 @@ with col_atividades:
             }}
             #atividades-container::-webkit-scrollbar-thumb {{
                 background: {c["scrollbar_thumb"]}; border-radius: 3px;
-            }}
-            #atividades-container::-webkit-scrollbar-thumb:hover {{
-                background: {c["scrollbar_thumb_hover"]};
             }}
             </style>
             <script>
@@ -389,15 +409,10 @@ with col_atividades:
                     }});
                 }}, {{ root: container, threshold: 0.1 }});
                 observer.observe(trigger);
-                trigger.addEventListener('click', () => {{
-                    const buttons = window.parent.document.querySelectorAll('button[kind="secondary"]');
-                    const btn = Array.from(buttons).find(b => b.textContent.includes('Carregar mais'));
-                    if (btn) btn.click();
-                }});
             }}
             </script>
             """
-            st.components.v1.html(html_code, height=400, scrolling=False)
+            st.components.v1.html(html_code, height=420, scrolling=False)
 
             if st.session_state.atividades_has_more:
                 st.markdown(
@@ -405,7 +420,7 @@ with col_atividades:
                     "{position:absolute;opacity:0;pointer-events:none;height:0;width:0;overflow:hidden;}</style>",
                     unsafe_allow_html=True,
                 )
-                if st.button("Carregar mais atividades", key="carregar_mais_atividades_trigger", type="secondary"):
+                if st.button("Carregar mais atividades", key="carregar_mais_trigger", type="secondary"):
                     novo_offset = len(st.session_state.atividades_todas)
                     novas = get_atividades_recentes(loja["loja_id"], limite=BATCH_SIZE, offset=novo_offset)
                     if novas:
@@ -419,60 +434,101 @@ with col_atividades:
         else:
             st.info("Nenhuma atividade registrada")
 
-st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+st.markdown("")
 
 # ============================================
 # SECAO 3: ANALYTICS (grid, sem tabs)
 # ============================================
 
-st.markdown(f'<div style="color:{c["text"]};font-size:20px;font-weight:600;margin-bottom:16px;">Analises</div>', unsafe_allow_html=True)
-
-# --- ROW 1: Tendencia + Funil ---
+# --- ROW 1: Tendencia (~60%) + Funil (~40%) ---
 col_tendencia, col_funil = st.columns([1.4, 1], gap="medium")
-
-plotly_defaults = get_plotly_layout_defaults()
 
 with col_tendencia:
     with st.container(border=True):
-        st.markdown(f'<div style="font-size:16px;font-weight:600;color:{c["text"]};margin-bottom:12px;">Tendencia de Leads</div>', unsafe_allow_html=True)
-
         leads_dia = get_leads_por_dia(loja["loja_id"], data_inicio=data_inicio, data_fim=data_fim)
 
         if leads_dia:
             df_dia = pd.DataFrame(leads_dia)
             df_dia["data"] = pd.to_datetime(df_dia["data"])
 
+            total_t = int(df_dia["total"].sum())
+            media_t = df_dia["total"].mean()
+            pico_row = df_dia.loc[df_dia["total"].idxmax()]
+            pico_data_str = f"{int(pico_row['data'].day)} {MESES_PT[pico_row['data'].month]}"
+            pico_val = int(pico_row["total"])
+
+            # Header com titulo + stats inline (como no mockup)
+            st.markdown(
+                f"""
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                    <div style="color:{c["text"]};font-size:16px;font-weight:600;">Tendencia de Leads</div>
+                    <div style="display:flex;gap:12px;">
+                        <div style="background:{c["surface_hover"]};border:1px solid {c["border"]};
+                                    border-radius:6px;padding:6px 12px;text-align:center;">
+                            <div style="color:{c["text_muted"]};font-size:10px;">Total:</div>
+                            <div style="color:{c["text"]};font-size:14px;font-weight:600;">{total_t}</div>
+                        </div>
+                        <div style="background:{c["surface_hover"]};border:1px solid {c["border"]};
+                                    border-radius:6px;padding:6px 12px;text-align:center;">
+                            <div style="color:{c["text_muted"]};font-size:10px;">Media Diaria:</div>
+                            <div style="color:{c["text"]};font-size:14px;font-weight:600;">{media_t:.1f}</div>
+                        </div>
+                        <div style="background:{c["surface_hover"]};border:1px solid {c["border"]};
+                                    border-radius:6px;padding:6px 12px;text-align:center;">
+                            <div style="color:{c["text_muted"]};font-size:10px;">Dia de Pico:</div>
+                            <div style="color:{c["text"]};font-size:14px;font-weight:600;">{pico_data_str} ({pico_val} leads)</div>
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # Annotation no pico
             fig = px.line(df_dia, x="data", y="total", markers=True, line_shape="spline")
             fig.update_layout(
                 **plotly_defaults,
                 showlegend=False,
                 xaxis_title=None,
-                yaxis_title="Leads",
+                yaxis_title=None,
                 height=280,
-                margin=dict(l=0, r=0, t=10, b=0),
+                margin=dict(l=0, r=0, t=30, b=0),
             )
             fig.update_traces(line_color=c["primary"], marker=dict(size=7, color=c["primary"]))
+
+            # Annotation no dia de pico
+            fig.add_annotation(
+                x=pico_row["data"],
+                y=pico_val,
+                text=f"Dia de Pico: {pico_data_str} ({pico_val} leads)",
+                showarrow=True,
+                arrowhead=2,
+                arrowcolor=c["text_muted"],
+                font=dict(size=11, color=c["text"]),
+                bgcolor=c["surface"],
+                bordercolor=c["border"],
+                borderwidth=1,
+                borderpad=4,
+                ax=0,
+                ay=-35,
+            )
+
             st.plotly_chart(fig, use_container_width=True)
-
-            # Stats inline
-            total_t = df_dia["total"].sum()
-            media_t = df_dia["total"].mean()
-            pico_row = df_dia.loc[df_dia["total"].idxmax()]
-            pico_data = pico_row["data"].strftime("%d/%m")
-
-            s1, s2, s3 = st.columns(3)
-            with s1:
-                st.metric("Total", total_t)
-            with s2:
-                st.metric("Media/dia", f"{media_t:.1f}")
-            with s3:
-                st.metric("Dia de Pico", f"{pico_data} ({int(pico_row['total'])})")
         else:
+            st.markdown(
+                f'<div style="color:{c["text"]};font-size:16px;font-weight:600;margin-bottom:12px;">'
+                f'Tendencia de Leads</div>',
+                unsafe_allow_html=True,
+            )
             st.info("Nenhum lead no periodo")
 
 with col_funil:
     with st.container(border=True):
-        st.markdown(f'<div style="font-size:16px;font-weight:600;color:{c["text"]};margin-bottom:12px;">Funil de Vendas</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="color:{c["text"]};font-size:16px;font-weight:600;margin-bottom:12px;">'
+            f'Funnel de Vendas</div>',
+            unsafe_allow_html=True,
+        )
 
         metricas_funil = get_metricas_funil(loja["loja_id"], data_inicio=data_inicio, data_fim=data_fim)
 
@@ -480,22 +536,42 @@ with col_funil:
         atendido = metricas_funil["atendido"]
         negociando = metricas_funil["negociando"]
         venda = metricas_funil["venda_concretizada"]
-        desistiu = metricas_funil["desistiu"]
 
         taxa_atendimento = (atendido / novo * 100) if novo > 0 else 0
         taxa_negociacao = (negociando / atendido * 100) if atendido > 0 else 0
         taxa_venda = (venda / negociando * 100) if negociando > 0 else 0
 
+        # Big numbers no topo (como mockup: 35  18  52%)
+        st.markdown(
+            f"""
+            <div style="display:flex;gap:16px;margin-bottom:12px;">
+                <div style="background:{c["surface_hover"]};border:1px solid {c["border"]};
+                            border-radius:8px;padding:10px 16px;min-width:60px;text-align:center;">
+                    <div style="color:{c["text"]};font-size:24px;font-weight:700;">{novo}</div>
+                </div>
+                <div style="background:{c["surface_hover"]};border:1px solid {c["border"]};
+                            border-radius:8px;padding:10px 16px;min-width:60px;text-align:center;">
+                    <div style="color:{c["text"]};font-size:24px;font-weight:700;">{atendido}</div>
+                </div>
+                <div style="background:{c["surface_hover"]};border:1px solid {c["border"]};
+                            border-radius:8px;padding:10px 16px;min-width:60px;text-align:center;">
+                    <div style="color:{c["text"]};font-size:24px;font-weight:700;">{taxa_atendimento:.0f}%</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
         f1, f2, f3 = st.columns(3)
         with f1:
-            st.metric("% Atendidos", f"{taxa_atendimento:.0f}%")
+            st.metric("% Atendidos", f"{taxa_atendimento:.1f}%")
         with f2:
-            st.metric("% Negociando", f"{taxa_negociacao:.0f}%")
+            st.metric("% Negociando", f"{taxa_negociacao:.1f}%")
         with f3:
-            st.metric("% Vendas", f"{taxa_venda:.0f}%")
+            st.metric("% Vendas", f"{taxa_venda:.1f}%")
 
         if novo > 0:
-            stages = ["Novo", "Atendido", "Negociando", "Venda"]
+            stages = ["Leads", "Contatados", "Negociando", "Vendas"]
             values = [novo, atendido, negociando, venda]
 
             fig = go.Figure(go.Funnel(
@@ -511,7 +587,7 @@ with col_funil:
             ))
             fig.update_layout(
                 **plotly_defaults,
-                height=250,
+                height=220,
                 margin=dict(l=0, r=0, t=10, b=0),
             )
             st.plotly_chart(fig, use_container_width=True)
@@ -523,7 +599,11 @@ col_origem, col_hora = st.columns(2, gap="medium")
 
 with col_origem:
     with st.container(border=True):
-        st.markdown(f'<div style="font-size:16px;font-weight:600;color:{c["text"]};margin-bottom:12px;">Leads por Origem</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="color:{c["text"]};font-size:16px;font-weight:600;margin-bottom:12px;">'
+            f'Leads por Origem</div>',
+            unsafe_allow_html=True,
+        )
 
         dados_origem = get_leads_por_origem_comparativo(loja["loja_id"], data_inicio=data_inicio, data_fim=data_fim)
         atual = dados_origem["atual"]
@@ -542,6 +622,7 @@ with col_origem:
                 marker=dict(color=cores[:len(labels)]),
                 text=values,
                 textposition="auto",
+                textfont=dict(color=c["text"]),
             ))
             fig.update_layout(
                 **plotly_defaults,
@@ -554,7 +635,6 @@ with col_origem:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            # Deltas vs periodo anterior
             anterior = dados_origem["anterior"]
             delta_parts = []
             for o in origens_sorted:
@@ -567,7 +647,11 @@ with col_origem:
 
 with col_hora:
     with st.container(border=True):
-        st.markdown(f'<div style="font-size:16px;font-weight:600;color:{c["text"]};margin-bottom:12px;">Leads por Hora</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="color:{c["text"]};font-size:16px;font-weight:600;margin-bottom:12px;">'
+            f'Leads por Hora</div>',
+            unsafe_allow_html=True,
+        )
 
         leads_hora = get_leads_por_hora(loja["loja_id"], data_inicio=data_inicio, data_fim=data_fim)
 
@@ -580,7 +664,7 @@ with col_hora:
                 y="total",
                 color="total",
                 color_continuous_scale=[
-                    [0, c["surface"]],
+                    [0, c["border"]],
                     [0.5, c["primary"]],
                     [1, c["primary_light"]],
                 ],
