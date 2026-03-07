@@ -117,6 +117,21 @@ def render_kpi_card(icon_html: str, label: str, value, subtitle: str = ""):
     )
 
 
+# Calcular delta vs ontem
+_hoje_str = date.today().isoformat()
+_ontem_str = (date.today() - timedelta(days=1)).isoformat()
+_leads_hoje = next((d["total"] for d in leads_periodo if d["data"] == _hoje_str), 0)
+_leads_ontem = next((d["total"] for d in leads_periodo if d["data"] == _ontem_str), 0)
+if _leads_ontem > 0:
+    _delta_pct = ((_leads_hoje - _leads_ontem) / _leads_ontem) * 100
+    _delta_sinal = "+" if _delta_pct >= 0 else ""
+    _delta_cor = c["success"] if _delta_pct >= 0 else c["error"]
+    _delta_txt = f'<span style="color:{_delta_cor}">{_delta_sinal}{_delta_pct:.0f}% vs ontem</span>'
+elif _leads_hoje > 0:
+    _delta_txt = f'<span style="color:{c["success"]}">+{_leads_hoje} vs ontem</span>'
+else:
+    _delta_txt = ""
+
 kpi1, kpi2, kpi3, kpi4 = st.columns(4, gap="medium")
 
 with kpi1:
@@ -124,6 +139,7 @@ with kpi1:
         _icon_box(_SVG_PEOPLE),
         "Leads Hoje",
         metricas["total_leads"],
+        _delta_txt,
     )
 
 with kpi2:
