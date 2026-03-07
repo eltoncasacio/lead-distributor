@@ -175,8 +175,9 @@ with kpi3:
     proximo_nome = proximo["nome"] if proximo else "Nenhum"
     render_kpi_card(
         _icon_box(_SVG_PERSON, amber=True),
-        "Proximo Vendedor na Fila",
+        "Próximo Vendedor na Fila",
         proximo_nome,
+        "",
     )
 
 with kpi4:
