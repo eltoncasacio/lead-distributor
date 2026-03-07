@@ -90,7 +90,7 @@ MESES_PT = {1:"Jan",2:"Fev",3:"Mar",4:"Abr",5:"Mai",6:"Jun",7:"Jul",8:"Ago",9:"S
 _SVG_PEOPLE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
 _SVG_CLOCK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
 _SVG_PERSON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
-_SVG_TEAM = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>'
+_SVG_TEAM = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.5"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="5" cy="18" r="1.8"/><circle cx="19" cy="18" r="1.8"/><line x1="10" y1="10.2" x2="6.5" y2="7.5"/><line x1="14" y1="10.2" x2="17.5" y2="7.5"/><line x1="10" y1="13.8" x2="6.5" y2="16.5"/><line x1="14" y1="13.8" x2="17.5" y2="16.5"/></svg>'
 
 
 def _icon_box(svg_template: str, amber: bool = False) -> str:
@@ -108,7 +108,7 @@ def render_kpi_card(icon_html: str, label: str, value, subtitle: str = ""):
     st.markdown(
         f"""
         <div style="background:{c["surface"]};border:1px solid {c["border"]};border-radius:12px;
-                    padding:20px;">
+                    padding:20px;min-height:160px;box-sizing:border-box;">
             <div style="margin-bottom:14px;">{icon_html}</div>
             <div style="color:{c["text_muted"]};font-size:12px;margin-bottom:4px;">{label}</div>
             <div style="color:{c["text"]};font-size:28px;font-weight:700;line-height:1.1;">{value}</div>
