@@ -809,6 +809,31 @@ def get_limite_leads(loja_id: str) -> Optional[int]:
     return None
 
 
+def get_ultimo_lead_info(loja_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Retorna info do ultimo lead recebido: vendedor e tempo relativo.
+
+    Returns:
+        {"vendedor_nome": "Giu", "recebido_em": "2026-03-07T14:30:00+00:00"} ou None
+    """
+    supabase = get_cached_supabase_client()
+    response = (
+        supabase.table("leads")
+        .select("recebido_em, vendedores(nome)")
+        .eq("loja_id", loja_id)
+        .order("recebido_em", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not response.data:
+        return None
+    lead = response.data[0]
+    return {
+        "vendedor_nome": lead["vendedores"]["nome"] if lead.get("vendedores") else "N/A",
+        "recebido_em": lead["recebido_em"],
+    }
+
+
 def get_metricas_funil(
     loja_id: str,
     dias: Optional[int] = None,

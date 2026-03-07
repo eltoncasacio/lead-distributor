@@ -21,6 +21,7 @@ from utils.queries import (
     reordenar_vendedores,
     get_metricas_funil,
     get_limite_leads,
+    get_ultimo_lead_info,
 )
 
 render_page_header("Dashboard")
@@ -39,6 +40,7 @@ with loading_spinner("Carregando metricas..."):
     vendedores = listar_vendedores(loja["loja_id"])
     proximo = obter_proximo_vendedor(loja["loja_id"])
     limite = get_limite_leads(loja["loja_id"])
+    ultimo_lead_info = get_ultimo_lead_info(loja["loja_id"])
 
 vendedores_ativos = [v for v in vendedores if v["status"] == "ativo"]
 
@@ -144,10 +146,29 @@ with kpi1:
 
 with kpi2:
     ultimo = metricas["ultimo_lead"] if metricas["ultimo_lead"] else "--"
+    # Subtitulo: quem recebeu e ha quanto tempo
+    _ultimo_sub = ""
+    if ultimo_lead_info:
+        _ultimo_vend = ultimo_lead_info["vendedor_nome"]
+        _ultimo_ts = pd.to_datetime(ultimo_lead_info["recebido_em"])
+        _agora = pd.Timestamp.now(tz="UTC")
+        if _ultimo_ts.tzinfo is None:
+            _ultimo_ts = _ultimo_ts.tz_localize("UTC")
+        _diff_min = int((_agora - _ultimo_ts).total_seconds() / 60)
+        if _diff_min < 1:
+            _tempo = "agora"
+        elif _diff_min < 60:
+            _tempo = f"ha {_diff_min}min"
+        elif _diff_min < 1440:
+            _tempo = f"ha {_diff_min // 60}h"
+        else:
+            _tempo = f"ha {_diff_min // 1440}d"
+        _ultimo_sub = f"{_ultimo_vend} recebeu {_tempo}"
     render_kpi_card(
         _icon_box(_SVG_CLOCK),
         "Ultimo Lead Recebido",
         ultimo,
+        _ultimo_sub,
     )
 
 with kpi3:
