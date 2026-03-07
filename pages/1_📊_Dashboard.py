@@ -84,14 +84,20 @@ with col_total:
 MESES_PT = {1:"Jan",2:"Fev",3:"Mar",4:"Abr",5:"Mai",6:"Jun",7:"Jul",8:"Ago",9:"Set",10:"Out",11:"Nov",12:"Dez"}
 
 
-def _icon_box(symbol: str, bg: str = "") -> str:
-    """Gera HTML de icone dentro de caixa escura arredondada."""
-    background = bg if bg else c["border"]
-    color = "#000" if bg else c["text_muted"]
+# SVG icons (outlined, monocromo)
+_SVG_PEOPLE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
+_SVG_CLOCK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+_SVG_PERSON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+_SVG_TEAM = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>'
+
+
+def _icon_box(svg_template: str, amber: bool = False) -> str:
+    bg = c["primary"] if amber else c["border"]
+    stroke = "#000" if amber else c["text_muted"]
+    svg = svg_template.format(color=stroke)
     return (
         f'<div style="display:inline-flex;align-items:center;justify-content:center;'
-        f'width:40px;height:40px;border-radius:10px;background:{background};'
-        f'font-size:18px;color:{color};">{symbol}</div>'
+        f'width:40px;height:40px;border-radius:10px;background:{bg};">{svg}</div>'
     )
 
 
@@ -115,16 +121,15 @@ kpi1, kpi2, kpi3, kpi4 = st.columns(4, gap="medium")
 
 with kpi1:
     render_kpi_card(
-        _icon_box("&#128101;"),
+        _icon_box(_SVG_PEOPLE),
         "Leads Hoje",
         metricas["total_leads"],
-        "+12% vs ontem" if metricas["total_leads"] > 0 else "",
     )
 
 with kpi2:
     ultimo = metricas["ultimo_lead"] if metricas["ultimo_lead"] else "--"
     render_kpi_card(
-        _icon_box("&#128339;"),
+        _icon_box(_SVG_CLOCK),
         "Ultimo Lead Recebido",
         ultimo,
     )
@@ -132,14 +137,14 @@ with kpi2:
 with kpi3:
     proximo_nome = proximo["nome"] if proximo else "Nenhum"
     render_kpi_card(
-        _icon_box("&#128100;", bg=c["primary"]),
+        _icon_box(_SVG_PERSON, amber=True),
         "Proximo Vendedor na Fila",
         proximo_nome,
     )
 
 with kpi4:
     render_kpi_card(
-        _icon_box("&#128101;"),
+        _icon_box(_SVG_TEAM),
         "Vendedores Ativos",
         len(vendedores_ativos),
     )
