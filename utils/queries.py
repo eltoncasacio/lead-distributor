@@ -269,7 +269,8 @@ def reordenar_vendedores(loja_id: str, nova_ordem: List[str]) -> bool:
 
     # Registrar atividade
     if nomes_nova_ordem:
-        descricao = "Fila reordenada: " + " → ".join(nomes_nova_ordem)
+        proximo = nomes_nova_ordem[0]
+        descricao = f"{proximo} agora é o próximo a receber lead"
         registrar_atividade(loja_id, "fila_reordenada", descricao)
 
     return True
