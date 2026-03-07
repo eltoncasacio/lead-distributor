@@ -101,6 +101,16 @@ def inject_theme_css():
         color: {c["text"]} !important;
     }}
 
+    /* Sidebar nav: item ativo = amber + barra direita */
+    section[data-testid="stSidebar"] a[aria-current="page"] {{
+        color: {c["primary"]} !important;
+        border-right: 3px solid {c["primary"]} !important;
+        border-radius: 0 !important;
+    }}
+    section[data-testid="stSidebar"] a[aria-current="page"] span {{
+        color: {c["primary"]} !important;
+    }}
+
     /* Containers com borda */
     [data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapper"] {{
         background-color: {c["surface"]} !important;
