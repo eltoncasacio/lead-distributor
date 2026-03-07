@@ -94,7 +94,7 @@ _SVG_TEAM = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke=
 
 
 def _icon_box(svg_template: str, amber: bool = False) -> str:
-    bg = c["primary"] if amber else c["border"]
+    bg = c["border"]
     stroke = "#000" if amber else c["text_muted"]
     svg = svg_template.format(color=stroke)
     return (
@@ -177,7 +177,6 @@ with kpi3:
         _icon_box(_SVG_PERSON, amber=True),
         "Próximo Vendedor na Fila",
         proximo_nome,
-        "",
     )
 
 with kpi4:
