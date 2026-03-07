@@ -129,19 +129,19 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
     df["recebido_em"] = pd.to_datetime(df["recebido_em"])
     df["Data/Hora"] = df["recebido_em"].dt.strftime("%d/%m/%Y %H:%M")
 
-    # Colunas base
-    colunas = ["Data/Hora", "nome_cliente", "numero_cliente", "anuncio", "origem", "vendedor_nome"]
-
-    # Adicionar coluna Status se necessario
+    # Colunas base (Status primeiro quando presente)
     if mostrar_coluna_status:
-        colunas.append("status_lead")
+        colunas = ["status_lead", "Data/Hora", "nome_cliente", "numero_cliente", "anuncio", "origem", "vendedor_nome"]
+    else:
+        colunas = ["Data/Hora", "nome_cliente", "numero_cliente", "anuncio", "origem", "vendedor_nome"]
 
     df_exibir = df[colunas].copy()
 
     # Renomear colunas
-    nomes_colunas = ["Data/Hora", "Cliente", "Telefone", "Anuncio", "Origem", "Vendedor"]
     if mostrar_coluna_status:
-        nomes_colunas.append("Status")
+        nomes_colunas = ["Status", "Data/Hora", "Cliente", "Telefone", "Anuncio", "Origem", "Vendedor"]
+    else:
+        nomes_colunas = ["Data/Hora", "Cliente", "Telefone", "Anuncio", "Origem", "Vendedor"]
 
     df_exibir.columns = nomes_colunas
 
