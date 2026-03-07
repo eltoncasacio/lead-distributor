@@ -50,9 +50,22 @@ def show_sidebar_info():
         return
 
     with st.sidebar:
-        render_theme_toggle()
-        st.divider()
-        if st.button(":material/logout:", use_container_width=True, type="secondary", help="Sair"):
+        # Botao Sair fixo no fundo da sidebar
+        st.markdown(
+            """
+            <style>
+            /* Empurrar conteudo pos-nav para o fundo da sidebar */
+            section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:last-child {
+                position: absolute;
+                bottom: 16px;
+                left: 16px;
+                right: 16px;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button(":material/logout: Sair", use_container_width=True, type="secondary"):
             logout()
 
 
