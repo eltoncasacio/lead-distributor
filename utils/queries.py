@@ -389,21 +389,28 @@ def contar_vendedores_ativos(loja_id: str) -> int:
 # DASHBOARD - MÉTRICAS E LEADS
 # ============================================
 
-def identificar_origem(numero_cliente: str) -> str:
-    """
-    Identifica origem do lead baseado no número do cliente.
 
-    Mapeamento:
-    - 551130044558 → iCarros
-    - 551131361712 → NaPista
-    - Outros → WhatsApp Direto
-    """
-    if numero_cliente == "551130044558":
-        return "iCarros"
-    elif numero_cliente == "551131361712":
-        return "NaPista"
-    else:
-        return "WhatsApp Direto"
+def get_leads_ontem(loja_id: str) -> int:
+    """Retorna total de leads recebidos ontem (timezone America/Sao_Paulo)."""
+    supabase = get_cached_supabase_client()
+    from datetime import datetime, timedelta, time
+    import zoneinfo
+
+    tz_sp = zoneinfo.ZoneInfo("America/Sao_Paulo")
+    agora_sp = datetime.now(tz_sp)
+    ontem = agora_sp.date() - timedelta(days=1)
+    dt_inicio = datetime.combine(ontem, time.min, tzinfo=tz_sp)
+    dt_fim = datetime.combine(ontem, time.max, tzinfo=tz_sp)
+
+    response = (
+        supabase.table("leads")
+        .select("id", count="exact")
+        .eq("loja_id", loja_id)
+        .gte("recebido_em", dt_inicio.isoformat())
+        .lte("recebido_em", dt_fim.isoformat())
+        .execute()
+    )
+    return response.count or 0
 
 
 def get_metricas_hoje(loja_id: str) -> Dict[str, Any]:
@@ -637,7 +644,7 @@ def get_leads_por_origem_comparativo(
     # Buscar leads de ambos os períodos (atual + anterior)
     response = (
         supabase.table("leads")
-        .select("numero_cliente, recebido_em")
+        .select("origem, recebido_em")
         .eq("loja_id", loja_id)
         .gte("recebido_em", dt_inicio_anterior.isoformat())
         .lte("recebido_em", dt_fim_atual.isoformat())
@@ -646,14 +653,12 @@ def get_leads_por_origem_comparativo(
         .execute()
     )
 
-    # Origens possiveis com default 0
-    origens = ["WhatsApp Direto", "iCarros", "NaPista"]
-    atual = {o: 0 for o in origens}
-    anterior = {o: 0 for o in origens}
+    atual = {}
+    anterior = {}
 
     if response.data:
         for lead in response.data:
-            origem = identificar_origem(lead["numero_cliente"])
+            origem = lead.get("origem") or "WhatsApp Direto"
             recebido = datetime.fromisoformat(lead["recebido_em"].replace("Z", "+00:00"))
             recebido_naive = recebido.replace(tzinfo=None)
 
@@ -723,10 +728,16 @@ def get_leads_lista(
     if not response.data:
         return []
 
-    # Adicionar origem calculada e formatar
+    # Formatar leads
     leads_formatados = []
     for lead in response.data:
-        lead_formatado = {
+        lead_origem = lead.get("origem") or "WhatsApp Direto"
+
+        # Filtro de origem
+        if origem and lead_origem != origem:
+            continue
+
+        leads_formatados.append({
             "id": lead["id"],
             "recebido_em": lead["recebido_em"],
             "nome_cliente": lead.get("nome_cliente", "N/A"),
@@ -734,14 +745,8 @@ def get_leads_lista(
             "numero_cliente": lead["numero_cliente"],
             "vendedor_nome": lead["vendedores"]["nome"] if lead.get("vendedores") else "N/A",
             "status_lead": lead.get("status_lead", "novo"),
-            "origem": identificar_origem(lead["numero_cliente"])
-        }
-
-        # Filtro de origem (aplicado em Python pois não está no banco)
-        if origem and lead_formatado["origem"] != origem:
-            continue
-
-        leads_formatados.append(lead_formatado)
+            "origem": lead_origem,
+        })
 
     return leads_formatados
 

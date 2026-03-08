@@ -1,9 +1,10 @@
 """
 Componentes de UI reutilizaveis - visual SaaS profissional.
 """
+
 import streamlit as st
 from .auth import logout, obter_loja_logada, require_login
-from .theme import get_colors, inject_theme_css, render_theme_toggle
+from .theme import get_colors, inject_theme_css
 
 
 def get_sortable_style(horizontal: bool = False) -> str:
@@ -12,8 +13,8 @@ def get_sortable_style(horizontal: bool = False) -> str:
         background-color: {c["surface"]};
         border: 1px solid {c["border"]};
         border-radius: 8px;
-        padding: {'8px 16px' if horizontal else '12px 16px'};
-        margin: {'0 4px' if horizontal else '4px 0'};
+        padding: {"8px 16px" if horizontal else "12px 16px"};
+        margin: {"0 4px" if horizontal else "4px 0"};
         color: {c["text"]};
         font-weight: 500;
         font-size: 14px;
@@ -57,7 +58,7 @@ def show_sidebar_info():
             /* Empurrar conteudo pos-nav para o fundo da sidebar */
             section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:last-child {
                 position: absolute;
-                bottom: 16px;
+                bottom: 0px;
                 left: 16px;
                 right: 16px;
             }
@@ -65,7 +66,9 @@ def show_sidebar_info():
             """,
             unsafe_allow_html=True,
         )
-        if st.button(":material/logout: Sair", use_container_width=True, type="secondary"):
+        if st.button(
+            ":material/logout: Sair", use_container_width=True, type="secondary"
+        ):
             logout()
 
 

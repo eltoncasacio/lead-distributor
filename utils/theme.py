@@ -2,6 +2,7 @@
 Sistema de temas (dark/light) com paleta amber.
 Single source of truth para todas as cores do app.
 """
+
 import streamlit as st
 
 # ============================================
@@ -55,6 +56,7 @@ LIGHT_PALETTE = {
 # GETTERS
 # ============================================
 
+
 def get_theme() -> str:
     return st.session_state.get("theme", "dark")
 
@@ -81,9 +83,11 @@ def get_plotly_layout_defaults() -> dict:
 # CSS INJECTION
 # ============================================
 
+
 def inject_theme_css():
     c = get_colors()
-    st.markdown(f"""
+    st.markdown(
+        f"""
     <style>
     /* === BASE === */
     .stApp {{
@@ -190,12 +194,15 @@ def inject_theme_css():
         display: none !important;
     }}
     </style>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 
 # ============================================
 # THEME TOGGLE
 # ============================================
+
 
 def render_theme_toggle():
     current = get_theme()
