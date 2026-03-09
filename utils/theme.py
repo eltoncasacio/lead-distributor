@@ -188,13 +188,10 @@ def inject_theme_css():
     .stMainBlockContainer {{
         padding-top: 0.5rem !important;
     }}
+    /* Header transparente mas funcional (mantem botao de sidebar) */
     .stAppHeader {{
-        display: none !important;
-    }}
-
-    /* Sidebar collapse button fix */
-    section[data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarCollapseButton"] {{
-        display: none !important;
+        background: transparent !important;
+        backdrop-filter: none !important;
     }}
     </style>
     """,
