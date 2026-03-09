@@ -4,7 +4,7 @@ Gestao de Vendedores.
 
 import re
 import streamlit as st
-import pandas as pd
+
 from utils.ui import (
     render_page_header,
     loading_spinner,
@@ -176,68 +176,129 @@ vendedores_visiveis = [v for v in vendedores if v["status"] != "removido"]
 if vendedores_visiveis:
     st.caption(f"{len(vendedores_visiveis)} vendedor(es) cadastrado(s)")
 
-    # Tabela read-only com data_editor
-    df = pd.DataFrame(vendedores_visiveis)
-    df["whatsapp_fmt"] = df["numero_whatsapp"].apply(
-        lambda w: f"+{w[0:2]} ({w[2:4]}) {w[4:9]}-{w[9:]}" if len(w) == 13 else w
+    def _fmt_whatsapp(w):
+        return f"+{w[0:2]} ({w[2:4]}) {w[4:9]}-{w[9:]}" if len(w) == 13 else w
+
+    # CSS para tabela de vendedores
+    st.markdown(
+        f"""
+    <style>
+    /* Container da tabela */
+    div[data-testid="stVerticalBlock"]:has(> div.vendedores-table-marker) {{
+        border: 1px solid {_c["border"]};
+        border-radius: 12px;
+        overflow: hidden;
+    }}
+
+    /* Cabecalho */
+    .vendedores-header {{
+        background: {_c["surface"]};
+        border-bottom: 1px solid {_c["border"]};
+        padding: 10px 16px;
+        display: flex;
+        gap: 0;
+    }}
+    .vendedores-header span {{
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: {_c["text_muted"]};
+    }}
+    .vendedores-header .col-nome {{ flex: 3; }}
+    .vendedores-header .col-whats {{ flex: 2.5; }}
+    .vendedores-header .col-status {{ flex: 1.5; }}
+    .vendedores-header .col-acoes {{ flex: 1.5; text-align: right; }}
+
+    /* Linhas da tabela - alinhamento vertical e separadores */
+    div[data-testid="stVerticalBlock"]:has(> div.vendedores-table-marker)
+    [data-testid="stHorizontalBlock"] {{
+        border-bottom: 1px solid {_c["border"]};
+        padding: 4px 8px;
+        align-items: center;
+        min-height: 52px;
+    }}
+    div[data-testid="stVerticalBlock"]:has(> div.vendedores-table-marker)
+    [data-testid="stHorizontalBlock"]:last-child {{
+        border-bottom: none;
+    }}
+
+    /* Remover margem dos paragrafos dentro da tabela */
+    div[data-testid="stVerticalBlock"]:has(> div.vendedores-table-marker)
+    [data-testid="stHorizontalBlock"] p {{
+        margin-bottom: 0;
+        line-height: 1.4;
+    }}
+
+    /* Botoes menores dentro da tabela */
+    div[data-testid="stVerticalBlock"]:has(> div.vendedores-table-marker)
+    button[data-testid="stBaseButton-secondary"] {{
+        padding: 4px 8px;
+        min-height: 36px;
+    }}
+    </style>
+    """,
+        unsafe_allow_html=True,
     )
-    df["status_label"] = df["status"].map({"ativo": "Ativo", "inativo": "Inativo"})
-    df_exibir = df[["nome", "whatsapp_fmt", "status_label"]].copy()
-    df_exibir.columns = ["Nome", "WhatsApp", "Status"]
 
-    st.dataframe(
-        df_exibir,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Nome": st.column_config.TextColumn("Nome", width="medium"),
-            "WhatsApp": st.column_config.TextColumn("WhatsApp", width="medium"),
-            "Status": st.column_config.TextColumn("Status", width="small"),
-        },
-    )
+    # Marcador + cabecalho HTML
+    with st.container():
+        st.markdown('<div class="vendedores-table-marker"></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="vendedores-header">'
+            '<span class="col-nome">Nome</span>'
+            '<span class="col-whats">WhatsApp</span>'
+            '<span class="col-status">Status</span>'
+            '<span class="col-acoes">Acoes</span>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
 
-    # Acoes por vendedor
-    st.markdown("**Acoes**")
-    for vendedor in vendedores_visiveis:
-        col_nome, col_edit, col_status, col_remove = st.columns([3, 1, 1, 1])
+        # Linhas da tabela com acoes integradas
+        for vendedor in vendedores_visiveis:
+            col_nome, col_whats, col_status, col_edit, col_pause, col_remove = st.columns([3, 2.5, 1.5, 0.5, 0.5, 0.5])
 
-        with col_nome:
-            st.markdown(f"**{vendedor['nome']}**")
+            with col_nome:
+                st.markdown(vendedor["nome"])
+            with col_whats:
+                st.markdown(_fmt_whatsapp(vendedor["numero_whatsapp"]))
+            with col_status:
+                status_label = "Ativo" if vendedor["status"] == "ativo" else "Inativo"
+                st.markdown(status_label)
 
-        with col_edit:
-            if st.button(":material/edit:", key=f"edit_{vendedor['id']}", help="Editar vendedor", use_container_width=True):
-                # Limpar estado anterior do form
-                for k in ["form_vendedor_nome", "form_vendedor_whats", "_init_form_vendedor"]:
-                    st.session_state.pop(k, None)
-                st.session_state.editando_vendedor = vendedor["id"]
-                st.rerun()
-
-        with col_status:
-            if vendedor["status"] == "ativo":
-                total_ativos = contar_vendedores_ativos(loja["loja_id"])
-                if total_ativos <= 1:
-                    st.button(":material/pause:", key=f"deactivate_{vendedor['id']}", disabled=True, help="Nao pode desativar o unico vendedor ativo", use_container_width=True)
-                else:
-                    if st.button(":material/pause:", key=f"deactivate_{vendedor['id']}", help="Pausar vendedor", use_container_width=True):
-                        alterar_status_vendedor(vendedor["id"], "inativo")
-                        success_message(f"**{vendedor['nome']}** inativado")
-                        st.rerun()
-            else:
-                if st.button(":material/play_arrow:", key=f"activate_{vendedor['id']}", help="Ativar vendedor", use_container_width=True):
-                    alterar_status_vendedor(vendedor["id"], "ativo")
-                    success_message(f"**{vendedor['nome']}** ativado")
+            with col_edit:
+                if st.button(":material/edit:", key=f"edit_{vendedor['id']}", help="Editar vendedor", use_container_width=True):
+                    for k in ["form_vendedor_nome", "form_vendedor_whats", "_init_form_vendedor"]:
+                        st.session_state.pop(k, None)
+                    st.session_state.editando_vendedor = vendedor["id"]
                     st.rerun()
 
-        with col_remove:
-            if st.button(":material/delete:", key=f"remove_{vendedor['id']}", help="Remover vendedor", use_container_width=True):
+            with col_pause:
                 if vendedor["status"] == "ativo":
                     total_ativos = contar_vendedores_ativos(loja["loja_id"])
                     if total_ativos <= 1:
-                        error_message("Nao pode remover o unico vendedor ativo. Adicione outro vendedor primeiro.")
-                        st.stop()
-                alterar_status_vendedor(vendedor["id"], "removido")
-                success_message(f"**{vendedor['nome']}** removido da fila")
-                st.rerun()
+                        st.button(":material/pause:", key=f"deactivate_{vendedor['id']}", disabled=True, help="Nao pode desativar o unico vendedor ativo", use_container_width=True)
+                    else:
+                        if st.button(":material/pause:", key=f"deactivate_{vendedor['id']}", help="Pausar vendedor", use_container_width=True):
+                            alterar_status_vendedor(vendedor["id"], "inativo")
+                            success_message(f"**{vendedor['nome']}** inativado")
+                            st.rerun()
+                else:
+                    if st.button(":material/play_arrow:", key=f"activate_{vendedor['id']}", help="Ativar vendedor", use_container_width=True):
+                        alterar_status_vendedor(vendedor["id"], "ativo")
+                        success_message(f"**{vendedor['nome']}** ativado")
+                        st.rerun()
+
+            with col_remove:
+                if st.button(":material/delete:", key=f"remove_{vendedor['id']}", help="Remover vendedor", use_container_width=True):
+                    if vendedor["status"] == "ativo":
+                        total_ativos = contar_vendedores_ativos(loja["loja_id"])
+                        if total_ativos <= 1:
+                            error_message("Nao pode remover o unico vendedor ativo. Adicione outro vendedor primeiro.")
+                            st.stop()
+                    alterar_status_vendedor(vendedor["id"], "removido")
+                    success_message(f"**{vendedor['nome']}** removido da fila")
+                    st.rerun()
 
 elif not vendedores:
     info_message("Nenhum vendedor cadastrado. Clique em 'Adicionar Vendedor' para comecar.")
