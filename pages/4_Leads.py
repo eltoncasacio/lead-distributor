@@ -1,11 +1,18 @@
 """
 Pagina de gerenciamento de leads com tabs, filtros e edicao inline de status.
 """
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date, timedelta
 import time
-from utils.ui import render_page_header, loading_spinner, success_message, info_message, inject_global_css
+from utils.ui import (
+    render_page_header,
+    loading_spinner,
+    success_message,
+    info_message,
+    inject_global_css,
+)
 from utils.auth import obter_loja_logada
 from utils.queries import (
     get_leads_lista,
@@ -26,7 +33,7 @@ loja = obter_loja_logada()
 # FILTROS COMPACTOS EM EXPANDER
 # ============================================
 
-with st.expander("Filtros", expanded=False):
+with st.expander("Filtros", expanded=True):
     col_inicio, col_fim, col_vendedor, col_origem = st.columns(4)
 
     with col_inicio:
@@ -34,7 +41,7 @@ with st.expander("Filtros", expanded=False):
             "Data inicial:",
             value=date.today() - timedelta(days=30),
             max_value=date.today(),
-            key="data_inicio_leads"
+            key="data_inicio_leads",
         )
 
     with col_fim:
@@ -42,7 +49,7 @@ with st.expander("Filtros", expanded=False):
             "Data final:",
             value=date.today(),
             max_value=date.today(),
-            key="data_fim_leads"
+            key="data_fim_leads",
         )
 
     with col_vendedor:
@@ -50,13 +57,15 @@ with st.expander("Filtros", expanded=False):
         # Excluir vendedores removidos do filtro
         vendedores_visiveis = [v for v in vendedores if v["status"] != "removido"]
         vendedores_opcoes = ["Todos"] + [v["nome"] for v in vendedores_visiveis]
-        filtro_vendedor = st.selectbox("Vendedor:", vendedores_opcoes, key="filtro_vendedor")
+        filtro_vendedor = st.selectbox(
+            "Vendedor:", vendedores_opcoes, key="filtro_vendedor"
+        )
 
     with col_origem:
         filtro_origem = st.selectbox(
             "Origem:",
             ["Todas", "iCarros", "NaPista", "WhatsApp Direto"],
-            key="filtro_origem"
+            key="filtro_origem",
         )
 
 # Validação de datas
@@ -72,7 +81,9 @@ if data_inicio > data_fim:
 # Buscar vendedor_id se filtro ativo (apenas vendedores visiveis)
 vendedor_id_filtro = None
 if filtro_vendedor != "Todos":
-    vendedor_selecionado = next((v for v in vendedores_visiveis if v["nome"] == filtro_vendedor), None)
+    vendedor_selecionado = next(
+        (v for v in vendedores_visiveis if v["nome"] == filtro_vendedor), None
+    )
     if vendedor_selecionado:
         vendedor_id_filtro = vendedor_selecionado["id"]
 
@@ -83,16 +94,15 @@ with loading_spinner("Carregando leads..."):
         data_inicio=data_inicio,
         data_fim=data_fim,
         vendedor_id=vendedor_id_filtro,
-        origem=filtro_origem if filtro_origem != "Todas" else None
+        origem=filtro_origem if filtro_origem != "Todas" else None,
     )
 
 # Indicador de período selecionado
 duracao = (data_fim - data_inicio).days + 1
 st.caption(
-    f"📅 **Período:** {data_inicio.strftime('%d/%m/%Y')} - "
+    f"**Período:** {data_inicio.strftime('%d/%m/%Y')} - "
     f"{data_fim.strftime('%d/%m/%Y')} ({duracao} dia{'s' if duracao != 1 else ''}) | "
-    f"📊 **Total:** {len(leads_lista)} lead{'s' if len(leads_lista) != 1 else ''} "
-    f"(limite: 500)"
+    f"**Total:** {len(leads_lista)} lead{'s' if len(leads_lista) != 1 else ''} "
 )
 
 # ============================================
@@ -108,14 +118,17 @@ desistiu = len([l for l in leads_lista if l["status_lead"] == "desistiu"])
 vendas = len([l for l in leads_lista if l["status_lead"] == "venda_concretizada"])
 
 # Tabs individuais por status
-tab_todos, tab_novo, tab_atendido, tab_negociando, tab_desistiu, tab_venda = st.tabs([
-    f"Todos ({todos})",
-    f"Novo ({novos})",
-    f"Atendido ({atendidos})",
-    f"Negociando ({negociando})",
-    f"Desistiu ({desistiu})",
-    f"Venda ({vendas})"
-])
+tab_todos, tab_novo, tab_atendido, tab_negociando, tab_desistiu, tab_venda = st.tabs(
+    [
+        f"Todos ({todos})",
+        f"Novo ({novos})",
+        f"Atendido ({atendidos})",
+        f"Negociando ({negociando})",
+        f"Desistiu ({desistiu})",
+        f"Venda ({vendas})",
+    ]
+)
+
 
 def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True):
     """
@@ -131,17 +144,47 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
 
     # Colunas base (Status primeiro quando presente)
     if mostrar_coluna_status:
-        colunas = ["status_lead", "Data/Hora", "nome_cliente", "numero_cliente", "anuncio", "origem", "vendedor_nome"]
+        colunas = [
+            "status_lead",
+            "Data/Hora",
+            "nome_cliente",
+            "numero_cliente",
+            "anuncio",
+            "origem",
+            "vendedor_nome",
+        ]
     else:
-        colunas = ["Data/Hora", "nome_cliente", "numero_cliente", "anuncio", "origem", "vendedor_nome"]
+        colunas = [
+            "Data/Hora",
+            "nome_cliente",
+            "numero_cliente",
+            "anuncio",
+            "origem",
+            "vendedor_nome",
+        ]
 
     df_exibir = df[colunas].copy()
 
     # Renomear colunas
     if mostrar_coluna_status:
-        nomes_colunas = ["Status", "Data/Hora", "Cliente", "Telefone", "Anuncio", "Origem", "Vendedor"]
+        nomes_colunas = [
+            "Status",
+            "Data/Hora",
+            "Cliente",
+            "Telefone",
+            "Anuncio",
+            "Origem",
+            "Vendedor",
+        ]
     else:
-        nomes_colunas = ["Data/Hora", "Cliente", "Telefone", "Anuncio", "Origem", "Vendedor"]
+        nomes_colunas = [
+            "Data/Hora",
+            "Cliente",
+            "Telefone",
+            "Anuncio",
+            "Origem",
+            "Vendedor",
+        ]
 
     df_exibir.columns = nomes_colunas
 
@@ -157,7 +200,13 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
             st.session_state.leads_salvamento_em_progresso = False
 
         # === RENDERIZAR DATA EDITOR ===
-        status_options = ["novo", "atendido", "negociando", "desistiu", "venda_concretizada"]
+        status_options = [
+            "novo",
+            "atendido",
+            "negociando",
+            "desistiu",
+            "venda_concretizada",
+        ]
 
         # Key estável (não baseada em hash dos dados para manter estado do widget)
         editor_key = f"editor_leads_{mostrar_coluna_status}"
@@ -185,10 +234,11 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
         # 1. Houve mudança REAL (hash diferente do original)
         # 2. Hash editado é diferente do último salvo (evitar re-save após rerun)
         # 3. Não estamos em meio a salvamento (prevenir loop infinito)
-        if (hash_original != hash_editado and
-            hash_editado != st.session_state[session_key] and
-            not st.session_state.leads_salvamento_em_progresso):
-
+        if (
+            hash_original != hash_editado
+            and hash_editado != st.session_state[session_key]
+            and not st.session_state.leads_salvamento_em_progresso
+        ):
             # Marcar salvamento em progresso (previne concorrência)
             st.session_state.leads_salvamento_em_progresso = True
 
@@ -214,9 +264,9 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
 
                     if status_original != status_novo:
                         lead_id = leads[idx]["id"]
-                        supabase.table("leads").update({
-                            "status_lead": status_novo
-                        }).eq("id", lead_id).execute()
+                        supabase.table("leads").update({"status_lead": status_novo}).eq(
+                            "id", lead_id
+                        ).execute()
                         mudancas += 1
 
                         # Registrar atividade
@@ -261,42 +311,57 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
 
     st.caption(f"Total: {len(leads)} leads")
 
+
 # Tab TODOS: Mostra coluna Status editavel
 with tab_todos:
     with st.container(border=True):
         st.markdown("#### Todos os Leads")
-        render_leads_table_filtrada(leads_lista, mostrar_coluna_status=True, editavel=True)
+        render_leads_table_filtrada(
+            leads_lista, mostrar_coluna_status=True, editavel=True
+        )
 
 # Tabs por status: SEM coluna Status (redundante)
 with tab_novo:
     with st.container(border=True):
         st.markdown("#### Leads Novos")
         leads_novos = [l for l in leads_lista if l["status_lead"] == "novo"]
-        render_leads_table_filtrada(leads_novos, mostrar_coluna_status=False, editavel=False)
+        render_leads_table_filtrada(
+            leads_novos, mostrar_coluna_status=False, editavel=False
+        )
 
 with tab_atendido:
     with st.container(border=True):
         st.markdown("#### Leads Atendidos")
         leads_atendidos = [l for l in leads_lista if l["status_lead"] == "atendido"]
-        render_leads_table_filtrada(leads_atendidos, mostrar_coluna_status=False, editavel=False)
+        render_leads_table_filtrada(
+            leads_atendidos, mostrar_coluna_status=False, editavel=False
+        )
 
 with tab_negociando:
     with st.container(border=True):
         st.markdown("#### Leads em Negociacao")
         leads_negociando = [l for l in leads_lista if l["status_lead"] == "negociando"]
-        render_leads_table_filtrada(leads_negociando, mostrar_coluna_status=False, editavel=False)
+        render_leads_table_filtrada(
+            leads_negociando, mostrar_coluna_status=False, editavel=False
+        )
 
 with tab_desistiu:
     with st.container(border=True):
         st.markdown("#### Leads que Desistiram")
         leads_desistiu = [l for l in leads_lista if l["status_lead"] == "desistiu"]
-        render_leads_table_filtrada(leads_desistiu, mostrar_coluna_status=False, editavel=False)
+        render_leads_table_filtrada(
+            leads_desistiu, mostrar_coluna_status=False, editavel=False
+        )
 
 with tab_venda:
     with st.container(border=True):
         st.markdown("#### Vendas Concretizadas")
-        leads_venda = [l for l in leads_lista if l["status_lead"] == "venda_concretizada"]
-        render_leads_table_filtrada(leads_venda, mostrar_coluna_status=False, editavel=False)
+        leads_venda = [
+            l for l in leads_lista if l["status_lead"] == "venda_concretizada"
+        ]
+        render_leads_table_filtrada(
+            leads_venda, mostrar_coluna_status=False, editavel=False
+        )
 
 # ============================================
 # DICAS E INFORMACOES

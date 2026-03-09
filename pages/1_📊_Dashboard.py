@@ -10,6 +10,22 @@ import plotly.graph_objects as go
 from datetime import date, datetime, timedelta
 import zoneinfo
 from streamlit_sortables import sort_items
+from utils.ui import loading_spinner, inject_global_css
+from utils.auth import obter_loja_logada
+from utils.theme import get_colors, get_plotly_layout_defaults
+from utils.queries import (
+    get_metricas_hoje,
+    get_leads_ontem,
+    get_leads_por_dia,
+    get_leads_por_hora,
+    get_leads_por_origem_comparativo,
+    listar_vendedores,
+    obter_proximo_vendedor,
+    get_atividades_recentes,
+    reordenar_vendedores,
+    get_metricas_funil,
+    get_ultimo_lead_info,
+)
 
 _TZ_SP = zoneinfo.ZoneInfo("America/Sao_Paulo")
 
@@ -44,23 +60,6 @@ def _formatar_data_atividade(iso_str: str) -> str:
         return f"Ontem, {dt.strftime('%H:%M')}"
     return f"{dt.strftime('%d/%m')}, {dt.strftime('%H:%M')}"
 
-
-from utils.ui import loading_spinner, inject_global_css
-from utils.auth import obter_loja_logada
-from utils.theme import get_colors, get_plotly_layout_defaults
-from utils.queries import (
-    get_metricas_hoje,
-    get_leads_ontem,
-    get_leads_por_dia,
-    get_leads_por_hora,
-    get_leads_por_origem_comparativo,
-    listar_vendedores,
-    obter_proximo_vendedor,
-    get_atividades_recentes,
-    reordenar_vendedores,
-    get_metricas_funil,
-    get_ultimo_lead_info,
-)
 
 # 1. SETUP E TEMA
 inject_global_css()
@@ -116,7 +115,7 @@ st.markdown(
         display:none !important;
     }}    
     </style>
-""",
+    """,
     unsafe_allow_html=True,
 )
 
@@ -199,11 +198,7 @@ st.markdown("")
 
 
 st.markdown(
-    '<div style="color:white; font-size:16px; font-weight:600; margin-top:30px;">Fila de Distribuição</div>',
-    unsafe_allow_html=True,
-)
-st.markdown(
-    '<div style="color:#94a3b8; font-size:12px; margin-bottom:5px;">Arraste para reordenar a fila</div>',
+    '<div style="color:white; font-size:16px; font-weight:600; margin-top:50px;">Fila de Distribuição <span style="color:#94a3b8; font-size:12px;"> (Arraste para reordenar a fila)</span></div>',
     unsafe_allow_html=True,
 )
 
@@ -231,7 +226,6 @@ if vendedores_ativos:
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
-            padding: 20px 10px !important;
             gap: 0px !important;
             position: relative !important;
             align-items: center !important;
@@ -244,10 +238,11 @@ if vendedores_ativos:
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             align-items: center !important;
-            background: transparent !important;
+            background: 1e293b !important;
             position: relative !important;
-            padding: 15px 5px !important;
+            padding: 15px 10px !important;
             min-height: auto !important;
+            border-radius: 12px;
         }}
 
         /* Linha do tempo de fundo */
@@ -257,7 +252,7 @@ if vendedores_ativos:
             top: 50%;
             left: 70px;
             right: 70px;
-            height: 2px;
+            height: 15px;
             background: linear-gradient(90deg, rgba(245,158,11,0.18), rgba(55,65,81,0.08));
             transform: translateY(-50%);
             z-index: 0;
@@ -278,7 +273,7 @@ if vendedores_ativos:
             color: {c["text"]} !important;
             font-size: 14px !important;
             font-weight: 600 !important;
-            margin: 0 24px 0 0 !important;
+            margin: 24px 20px !important;
             padding: 0 !important;
             position: relative !important;
             cursor: grab !important;
@@ -299,7 +294,7 @@ if vendedores_ativos:
             transform: translateX(50%) translateY(-50%);
             color: {c["text_subtle"]};
             font-size: 18px;
-            font-weight: 400;
+            font-weight: 600;
             pointer-events: none;
             z-index: 2;
         }}
@@ -392,7 +387,7 @@ if "analytics_d_ini" not in st.session_state:
 if "analytics_d_fim" not in st.session_state:
     st.session_state["analytics_d_fim"] = date.today()
 
-c_f1, c_f2, c_f3, _ = st.columns([1, 1, 0.5, 2.5])
+c_f1, c_f2, c_f3, _ = st.columns([1, 1, 0.5, 2.52])
 d_ini = c_f1.date_input("Início", key="analytics_d_ini")
 d_fim = c_f2.date_input("Fim", key="analytics_d_fim")
 c_f3.markdown("<div style='height:27px'></div>", unsafe_allow_html=True)

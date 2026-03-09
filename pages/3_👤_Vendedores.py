@@ -1,10 +1,18 @@
 """
 Gestao de Vendedores.
 """
+
 import re
 import streamlit as st
 import pandas as pd
-from utils.ui import render_page_header, loading_spinner, success_message, error_message, info_message, inject_global_css
+from utils.ui import (
+    render_page_header,
+    loading_spinner,
+    success_message,
+    error_message,
+    info_message,
+    inject_global_css,
+)
 from utils.auth import obter_loja_logada
 from utils.theme import get_colors
 from utils.queries import (
@@ -29,7 +37,8 @@ render_page_header("Vendedores")
 inject_global_css()
 
 _c = get_colors()
-st.components.v1.html(f"""
+st.components.v1.html(
+    f"""
 <script>
 (function() {{
     function colorButtons() {{
@@ -57,7 +66,9 @@ st.components.v1.html(f"""
     setTimeout(colorButtons, 3000);
 }})();
 </script>
-""", height=0)
+""",
+    height=0,
+)
 
 loja = obter_loja_logada()
 
@@ -70,53 +81,58 @@ with loading_spinner("Carregando vendedores..."):
     vendedores = listar_vendedores(loja["loja_id"])
 
 # Botao adicionar
-col1, col2 = st.columns([3, 1])
-with col2:
+_, col_add = st.columns([3, 1])
+with col_add:
     if st.button("Adicionar Vendedor", use_container_width=True, type="primary"):
         st.session_state.editando_vendedor = "novo"
         st.rerun()
 
-# Formulario de adicionar/editar
+# Formulario de adicionar/editar (aparece acima da tabela)
 if st.session_state.editando_vendedor:
     vendedor_atual = None
-    titulo_form = "Adicionar Novo Vendedor"
-
     if st.session_state.editando_vendedor != "novo":
-        # Modo edicao
         vendedor_atual = next(
             (v for v in vendedores if v["id"] == st.session_state.editando_vendedor),
-            None
-        )
-        titulo_form = f"Editar Vendedor: {vendedor_atual['nome']}"
-
-    with st.form("form_vendedor", clear_on_submit=True):
-        st.markdown(f"### {titulo_form}")
-
-        nome = st.text_input(
-            "Nome completo",
-            value=vendedor_atual["nome"] if vendedor_atual else "",
-            placeholder="Ex: Joao Silva"
+            None,
         )
 
-        whatsapp = st.text_input(
-            "WhatsApp",
-            value=vendedor_atual["numero_whatsapp"] if vendedor_atual else "",
-            placeholder="Ex: 11999998888",
-            help="DDD + numero (o 55 e adicionado automaticamente)"
-        )
+    with st.container(border=True):
+        st.markdown(f"**{'Editar Vendedor' if vendedor_atual else 'Novo Vendedor'}**")
+        c1, c2 = st.columns(2)
+        nome_key = "form_vendedor_nome"
+        whats_key = "form_vendedor_whats"
 
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            submitted = st.form_submit_button("Salvar", use_container_width=True)
-        with col_btn2:
-            cancelar = st.form_submit_button("Cancelar", use_container_width=True)
+        # Inicializar valores para edicao (apenas uma vez)
+        init_key = "_init_form_vendedor"
+        if init_key not in st.session_state:
+            st.session_state[init_key] = True
+            if vendedor_atual:
+                st.session_state[nome_key] = vendedor_atual["nome"]
+                st.session_state[whats_key] = vendedor_atual["numero_whatsapp"]
+            else:
+                st.session_state.setdefault(nome_key, "")
+                st.session_state.setdefault(whats_key, "")
+
+        with c1:
+            st.text_input("Nome", placeholder="Ex: Joao Silva", key=nome_key)
+        with c2:
+            st.text_input("WhatsApp", placeholder="Ex: 11999998888", help="DDD + numero (55 adicionado automaticamente)", key=whats_key)
+        b1, b2, _ = st.columns([1, 1, 4])
+        with b1:
+            salvar = st.button("Salvar", use_container_width=True, type="primary")
+        with b2:
+            cancelar = st.button("Cancelar", use_container_width=True)
 
         if cancelar:
+            for k in [nome_key, whats_key, init_key]:
+                st.session_state.pop(k, None)
             st.session_state.editando_vendedor = None
             st.rerun()
 
-        if submitted:
-            # Validacoes
+        if salvar:
+            nome = st.session_state.get(nome_key, "").strip()
+            whatsapp = st.session_state.get(whats_key, "").strip()
+
             nome_valido, msg_nome = validar_nome(nome)
             if not nome_valido:
                 error_message(msg_nome)
@@ -128,26 +144,22 @@ if st.session_state.editando_vendedor:
                 error_message(msg_whatsapp)
                 st.stop()
 
-            # Verificar se WhatsApp ja existe
             excluir_id = vendedor_atual["id"] if vendedor_atual else None
             if whatsapp_ja_existe(whatsapp_formatado, loja["loja_id"], excluir_id):
                 error_message("Este WhatsApp ja esta cadastrado (gerente ou vendedor)")
                 st.stop()
 
-            # Salvar
             try:
                 if vendedor_atual:
-                    # Editar
                     editar_vendedor(vendedor_atual["id"], nome, whatsapp_formatado)
                     success_message(f"Vendedor **{nome}** atualizado!")
                 else:
-                    # Adicionar (ordem_fila auto-calculada)
                     adicionar_vendedor(loja["loja_id"], nome, whatsapp_formatado)
                     success_message(f"Vendedor **{nome}** adicionado a fila!")
-
+                for k in [nome_key, whats_key, init_key]:
+                    st.session_state.pop(k, None)
                 st.session_state.editando_vendedor = None
                 st.rerun()
-
             except Exception as e:
                 msg = str(e)
                 if "23505" in msg or "duplicate key" in msg.lower():
@@ -156,87 +168,76 @@ if st.session_state.editando_vendedor:
                     error_message(f"Erro ao salvar: {msg}")
 
 # ============================================
-# TABELA DE VENDEDORES COM ACOES INTEGRADAS
+# TABELA DE VENDEDORES COM ACOES
 # ============================================
 
 vendedores_visiveis = [v for v in vendedores if v["status"] != "removido"]
 
 if vendedores_visiveis:
-    with st.container(border=True):
-        st.markdown("### Lista de Vendedores")
-        st.caption(f"Total: {len(vendedores_visiveis)} vendedor(es)")
+    st.caption(f"{len(vendedores_visiveis)} vendedor(es) cadastrado(s)")
 
-        # Cabecalho da tabela customizada
-        col_header1, col_header2, col_header3, col_header4 = st.columns([3, 2.5, 1.5, 2])
-        with col_header1:
-            st.markdown("**Nome**")
-        with col_header2:
-            st.markdown("**WhatsApp**")
-        with col_header3:
-            st.markdown("**Status**")
-        with col_header4:
-            st.markdown("**Ações**")
+    # Tabela read-only com data_editor
+    df = pd.DataFrame(vendedores_visiveis)
+    df["whatsapp_fmt"] = df["numero_whatsapp"].apply(
+        lambda w: f"+{w[0:2]} ({w[2:4]}) {w[4:9]}-{w[9:]}" if len(w) == 13 else w
+    )
+    df["status_label"] = df["status"].map({"ativo": "Ativo", "inativo": "Inativo"})
+    df_exibir = df[["nome", "whatsapp_fmt", "status_label"]].copy()
+    df_exibir.columns = ["Nome", "WhatsApp", "Status"]
 
-        st.divider()
+    st.dataframe(
+        df_exibir,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Nome": st.column_config.TextColumn("Nome", width="medium"),
+            "WhatsApp": st.column_config.TextColumn("WhatsApp", width="medium"),
+            "Status": st.column_config.TextColumn("Status", width="small"),
+        },
+    )
 
-        # Renderizar cada vendedor como linha
-        for vendedor in vendedores_visiveis:
-            col1, col2, col3, col4 = st.columns([3, 2.5, 1.5, 2])
+    # Acoes por vendedor
+    st.markdown("**Acoes**")
+    for vendedor in vendedores_visiveis:
+        col_nome, col_edit, col_status, col_remove = st.columns([3, 1, 1, 1])
 
-            with col1:
-                st.text(vendedor["nome"])
+        with col_nome:
+            st.markdown(f"**{vendedor['nome']}**")
 
-            with col2:
-                # Formatar WhatsApp: +55 (11) 99999-8888
-                whatsapp = vendedor["numero_whatsapp"]
-                if len(whatsapp) == 13:  # 5511999998888
-                    whatsapp_formatado = f"+{whatsapp[0:2]} ({whatsapp[2:4]}) {whatsapp[4:9]}-{whatsapp[9:]}"
+        with col_edit:
+            if st.button(":material/edit:", key=f"edit_{vendedor['id']}", help="Editar vendedor", use_container_width=True):
+                # Limpar estado anterior do form
+                for k in ["form_vendedor_nome", "form_vendedor_whats", "_init_form_vendedor"]:
+                    st.session_state.pop(k, None)
+                st.session_state.editando_vendedor = vendedor["id"]
+                st.rerun()
+
+        with col_status:
+            if vendedor["status"] == "ativo":
+                total_ativos = contar_vendedores_ativos(loja["loja_id"])
+                if total_ativos <= 1:
+                    st.button(":material/pause:", key=f"deactivate_{vendedor['id']}", disabled=True, help="Nao pode desativar o unico vendedor ativo", use_container_width=True)
                 else:
-                    whatsapp_formatado = whatsapp
-                st.text(whatsapp_formatado)
-
-            with col3:
-                status_label = {
-                    "ativo": "Ativo",
-                    "inativo": "Inativo",
-                }
-                st.text(status_label.get(vendedor["status"], vendedor["status"]))
-
-            with col4:
-                btn1, btn2, btn3 = st.columns(3)
-                with btn1:
-                    if st.button(":material/edit:", key=f"edit_{vendedor['id']}", help="Editar vendedor"):
-                        st.session_state.editando_vendedor = vendedor["id"]
+                    if st.button(":material/pause:", key=f"deactivate_{vendedor['id']}", help="Pausar vendedor", use_container_width=True):
+                        alterar_status_vendedor(vendedor["id"], "inativo")
+                        success_message(f"**{vendedor['nome']}** inativado")
                         st.rerun()
-                with btn2:
-                    if vendedor["status"] == "ativo":
-                        total_ativos = contar_vendedores_ativos(loja["loja_id"])
-                        if total_ativos <= 1:
-                            st.button(":material/pause:", key=f"deactivate_{vendedor['id']}", disabled=True, help="Nao pode desativar o unico vendedor ativo")
-                        else:
-                            if st.button(":material/pause:", key=f"deactivate_{vendedor['id']}", help="Pausar vendedor"):
-                                alterar_status_vendedor(vendedor["id"], "inativo")
-                                success_message(f"**{vendedor['nome']}** inativado")
-                                st.rerun()
-                    else:
-                        if st.button(":material/play_arrow:", key=f"activate_{vendedor['id']}", help="Ativar vendedor"):
-                            alterar_status_vendedor(vendedor["id"], "ativo")
-                            success_message(f"**{vendedor['nome']}** ativado")
-                            st.rerun()
-                with btn3:
-                    if st.button(":material/delete:", key=f"remove_{vendedor['id']}", help="Remover vendedor"):
-                        if vendedor["status"] == "ativo":
-                            total_ativos = contar_vendedores_ativos(loja["loja_id"])
-                            if total_ativos <= 1:
-                                error_message("Nao pode remover o unico vendedor ativo. Adicione outro vendedor primeiro.")
-                                st.stop()
-                        alterar_status_vendedor(vendedor["id"], "removido")
-                        success_message(f"**{vendedor['nome']}** removido da fila")
-                        st.rerun()
+            else:
+                if st.button(":material/play_arrow:", key=f"activate_{vendedor['id']}", help="Ativar vendedor", use_container_width=True):
+                    alterar_status_vendedor(vendedor["id"], "ativo")
+                    success_message(f"**{vendedor['nome']}** ativado")
+                    st.rerun()
 
-            # Separador visual entre linhas
-            if vendedor != vendedores_visiveis[-1]:
-                st.divider()
+        with col_remove:
+            if st.button(":material/delete:", key=f"remove_{vendedor['id']}", help="Remover vendedor", use_container_width=True):
+                if vendedor["status"] == "ativo":
+                    total_ativos = contar_vendedores_ativos(loja["loja_id"])
+                    if total_ativos <= 1:
+                        error_message("Nao pode remover o unico vendedor ativo. Adicione outro vendedor primeiro.")
+                        st.stop()
+                alterar_status_vendedor(vendedor["id"], "removido")
+                success_message(f"**{vendedor['nome']}** removido da fila")
+                st.rerun()
 
 elif not vendedores:
     info_message("Nenhum vendedor cadastrado. Clique em 'Adicionar Vendedor' para comecar.")
@@ -249,7 +250,9 @@ else:
 
 st.divider()
 st.markdown("### Mensagens Prontas")
-st.info("A primeira mensagem da lista e enviada automaticamente como link wa.me quando um lead e distribuido. O vendedor clica no link para iniciar a conversa.")
+st.info(
+    "A primeira mensagem da lista é enviada automaticamente como link wa.me quando um lead e distribuido. O vendedor clica no link para iniciar a conversa."
+)
 
 # Estado para controlar edicao de mensagem
 if "editando_mensagem" not in st.session_state:
@@ -278,7 +281,9 @@ def _inserir_placeholder(key: str, placeholder: str):
     st.session_state[key] = st.session_state.get(key, "") + placeholder
 
 
-def _render_form_mensagem(key_prefix: str, loja_id: str, vendedor_id=None, mensagem_atual=None):
+def _render_form_mensagem(
+    key_prefix: str, loja_id: str, vendedor_id=None, mensagem_atual=None
+):
     """Renderiza formulario de adicionar/editar mensagem pronta."""
     titulo_form = "Editar Mensagem" if mensagem_atual else "Nova Mensagem"
     st.markdown(f"**{titulo_form}**")
@@ -336,9 +341,16 @@ def _render_form_mensagem(key_prefix: str, loja_id: str, vendedor_id=None, mensa
     # Botoes Salvar / Cancelar
     col_s, col_c = st.columns(2)
     with col_s:
-        salvar = st.button("Salvar", key=f"salvar_{key_prefix}", use_container_width=True, type="primary")
+        salvar = st.button(
+            "Salvar",
+            key=f"salvar_{key_prefix}",
+            use_container_width=True,
+            type="primary",
+        )
     with col_c:
-        cancelar = st.button("Cancelar", key=f"cancelar_{key_prefix}", use_container_width=True)
+        cancelar = st.button(
+            "Cancelar", key=f"cancelar_{key_prefix}", use_container_width=True
+        )
 
     if cancelar:
         # Limpar estado do formulario
@@ -359,11 +371,13 @@ def _render_form_mensagem(key_prefix: str, loja_id: str, vendedor_id=None, mensa
             st.stop()
 
         # Validar placeholders desconhecidos
-        encontrados = re.findall(r'\{([^}]+)\}', texto)
+        encontrados = re.findall(r"\{([^}]+)\}", texto)
         desconhecidos = [f for f in encontrados if f not in _PLACEHOLDERS_VALIDOS]
         if desconhecidos:
             nomes = ", ".join(f"{{{d}}}" for d in desconhecidos)
-            error_message(f"Placeholder desconhecido: {nomes}. Use os botoes acima para inserir placeholders corretos.")
+            error_message(
+                f"Placeholder desconhecido: {nomes}. Use os botoes acima para inserir placeholders corretos."
+            )
             st.stop()
 
         try:
@@ -397,11 +411,19 @@ def _render_lista_mensagens(mensagens: list, key_prefix: str, loja_id: str):
             with col_acoes:
                 b1, b2 = st.columns(2)
                 with b1:
-                    if st.button(":material/edit:", key=f"edit_msg_{key_prefix}_{msg['id']}", help="Editar"):
+                    if st.button(
+                        ":material/edit:",
+                        key=f"edit_msg_{key_prefix}_{msg['id']}",
+                        help="Editar",
+                    ):
                         st.session_state.editando_mensagem = msg["id"]
                         st.rerun()
                 with b2:
-                    if st.button(":material/delete:", key=f"del_msg_{key_prefix}_{msg['id']}", help="Deletar"):
+                    if st.button(
+                        ":material/delete:",
+                        key=f"del_msg_{key_prefix}_{msg['id']}",
+                        help="Deletar",
+                    ):
                         deletar_mensagem_pronta(msg["id"], loja_id)
                         success_message(f"Mensagem **{msg['titulo']}** removida")
                         st.rerun()
@@ -421,7 +443,12 @@ with tab_loja:
 
     col_add, _ = st.columns([1, 3])
     with col_add:
-        if st.button("Adicionar Mensagem", key="add_msg_loja", use_container_width=True, type="primary"):
+        if st.button(
+            "Adicionar Mensagem",
+            key="add_msg_loja",
+            use_container_width=True,
+            type="primary",
+        ):
             st.session_state.editando_mensagem = "nova_loja"
             st.rerun()
 
@@ -450,12 +477,19 @@ with tab_vendedor:
 
             col_add_v, _ = st.columns([1, 3])
             with col_add_v:
-                if st.button("Adicionar Mensagem", key="add_msg_vendedor", use_container_width=True, type="primary"):
+                if st.button(
+                    "Adicionar Mensagem",
+                    key="add_msg_vendedor",
+                    use_container_width=True,
+                    type="primary",
+                ):
                     st.session_state.editando_mensagem = f"nova_vendedor_{vid}"
                     st.rerun()
 
             if st.session_state.editando_mensagem == f"nova_vendedor_{vid}":
-                _render_form_mensagem(key_prefix=f"nova_v_{vid}", loja_id=loja["loja_id"], vendedor_id=vid)
+                _render_form_mensagem(
+                    key_prefix=f"nova_v_{vid}", loja_id=loja["loja_id"], vendedor_id=vid
+                )
 
             _render_lista_mensagens(mensagens_vendedor, f"v_{vid}", loja["loja_id"])
 
@@ -469,7 +503,7 @@ with st.expander("Dicas de Uso"):
     st.markdown("""
     **Gerenciamento de vendedores:**
     - Use o botao **Adicionar Vendedor** para cadastrar novos vendedores
-    - Clique nos botoes da tabela para **Editar**, **Pausar/Ativar** ou **Remover** vendedores
+    - Clique nos botoes de acao para **Editar**, **Pausar/Ativar** ou **Remover** vendedores
     - Para reordenar a fila de distribuicao, acesse o **Dashboard** e arraste os vendedores
 
     **Status dos vendedores:**
