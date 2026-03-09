@@ -131,7 +131,7 @@ if st.session_state.editando_gerente:
             try:
                 if gerente_atual:
                     # Editar
-                    editar_gerente(gerente_atual["id"], nome, whatsapp_formatado)
+                    editar_gerente(gerente_atual["id"], nome, whatsapp_formatado, loja["loja_id"])
                     success_message(f"Gerente **{nome}** atualizado!")
                 else:
                     # Adicionar
@@ -177,12 +177,12 @@ if gerentes:
             with btn2:
                 if gerente["ativo"]:
                     if st.button(":material/pause:", key=f"deactivate_{gerente['id']}", help="Desativar gerente"):
-                        desativar_gerente(gerente["id"])
+                        desativar_gerente(gerente["id"], loja["loja_id"])
                         success_message(f"Gerente **{gerente['nome']}** desativado")
                         st.rerun()
             with btn3:
                 if st.button(":material/delete:", key=f"delete_{gerente['id']}", help="Remover gerente"):
-                    deletar_gerente(gerente["id"])
+                    deletar_gerente(gerente["id"], loja["loja_id"])
                     success_message(f"Gerente **{gerente['nome']}** removido")
                     st.rerun()
 

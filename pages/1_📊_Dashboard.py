@@ -7,8 +7,44 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+import zoneinfo
 from streamlit_sortables import sort_items
+
+_TZ_SP = zoneinfo.ZoneInfo("America/Sao_Paulo")
+
+
+def _tempo_relativo(iso_str: str) -> str:
+    """Converte timestamp ISO para texto relativo em pt-BR (timezone SP)."""
+    dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00")).astimezone(_TZ_SP)
+    agora = datetime.now(_TZ_SP)
+    delta = agora - dt
+    segundos = int(delta.total_seconds())
+    if segundos < 60:
+        return "agora"
+    minutos = segundos // 60
+    if minutos < 60:
+        return f"há {minutos} min"
+    horas = minutos // 60
+    if horas < 24:
+        return f"há {horas} hora" if horas == 1 else f"há {horas} horas"
+    dias = horas // 24
+    if dias == 1:
+        return "ontem"
+    return f"há {dias} dias"
+
+
+def _formatar_data_atividade(iso_str: str) -> str:
+    """Formata timestamp ISO para exibição legível em pt-BR (ex: 'Hoje, 13:11' ou '07/03, 09:45')."""
+    dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00")).astimezone(_TZ_SP)
+    agora = datetime.now(_TZ_SP)
+    if dt.date() == agora.date():
+        return f"Hoje, {dt.strftime('%H:%M')}"
+    if dt.date() == (agora - timedelta(days=1)).date():
+        return f"Ontem, {dt.strftime('%H:%M')}"
+    return f"{dt.strftime('%d/%m')}, {dt.strftime('%H:%M')}"
+
+
 from utils.ui import loading_spinner, inject_global_css
 from utils.auth import obter_loja_logada
 from utils.theme import get_colors, get_plotly_layout_defaults
@@ -43,80 +79,42 @@ st.markdown(
         border-radius: 12px; 
     }}
     
-    /* FIX PARA FILA HORIZONTAL ESTILIZADA */
-    [data-testid="stVerticalBlock"] > div:has(.sortable-container) > div {{
+    /* Fila horizontal — forcar em todos os niveis */
+    [data-testid="stVerticalBlock"] > div:has(.sortable-component) > div,
+    .sortable-component,
+    .sortable-component > div,
+    .sortable-component.vertical,
+    .sortable-container,
+    .sortable-container-body {{
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         align-items: center !important;
     }}
-    
-    .sortable-container {{
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
-        padding: 10px 0px !important;
-        gap: 0px !important;
-    }}
-    .sortable-container::-webkit-scrollbar {{ display: none; }}
 
-    .sortable-item {{
-        flex: 0 0 auto !important;
-        width: 140px !important; 
-        height: 85px !important;
-        background: #111827 !important;
-        border: 1.5px solid #374151 !important;
-        border-radius: 10px !important;
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
-        color: white !important;
-        font-size: 20px !important;
-        font-weight: 700 !important;
-        margin-right: 45px !important; 
-        position: relative !important;
-        cursor: grab !important;
+    .sortable-container-body {{
+        background: transparent !important;
+        min-height: auto !important;
+        padding: 15px 5px !important;
     }}
 
-    /* Seta Branca Indicativa entre os cards */
-    .sortable-item:not(:last-child)::after {{
-        content: '→';
-        position: absolute;
-        right: -38px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: white !important;
-        font-size: 24px;
-        font-weight: 300;
-        pointer-events: none;
+    /* Esconder hint de acessibilidade do sortables */
+    div[role="status"][aria-live] {{
+        display: none !important;
     }}
 
-    /* Estilo do Card Ativo (Giu/André conforme print) */
-    .sortable-item:first-child {{
-        border-color: #f59e0b !important;
-        box-shadow: 0 0 12px rgba(245, 158, 11, 0.15) !important;
+    /* Esconder mensagem de acessibilidade do drag */
+    [data-rbd-live-announcer]{{
+        display:none !important;
     }}
 
-    /* Badge "PRÓXIMO LEAD" interno */
-    .sortable-item:first-child::before {{
-        content: 'PRÓXIMO LEAD';
-        position: absolute;
-        bottom: 8px;
-        background: #f59e0b;
-        color: black;
-        font-size: 9px;
-        font-weight: 800;
-        padding: 2px 8px;
-        border-radius: 4px;
-        letter-spacing: 0.2px;
-        white-space: nowrap;
+    [aria-live="assertive"]{{
+        display:none !important;
     }}
 
-    .sortable-item:first-child {{
-        padding-bottom: 15px !important;
-    }}
+    div[role="status"]{{
+        display:none !important;
+    }}    
     </style>
 """,
     unsafe_allow_html=True,
@@ -178,11 +176,11 @@ with k_cols[0]:
         "leads", "Leads Hoje", metricas["total_leads"], _sub_leads, _sub_cor
     )
 with k_cols[1]:
-    h_rel = (
-        f"{ultimo_lead_info['vendedor_nome']} recebeu há pouco"
-        if ultimo_lead_info
-        else ""
-    )
+    if ultimo_lead_info:
+        _tempo = _tempo_relativo(ultimo_lead_info["recebido_em"])
+        h_rel = f"{ultimo_lead_info['vendedor_nome']} recebeu {_tempo}"
+    else:
+        h_rel = ""
     render_kpi_card(
         "clock", "Último Lead Recebido", metricas["ultimo_lead"] or "--", h_rel
     )
@@ -210,16 +208,142 @@ st.markdown(
 )
 
 if vendedores_ativos:
-    v_sorted = sorted(vendedores_ativos, key=lambda x: x["criado_em"])
+    v_sorted = sorted(vendedores_ativos, key=lambda x: x["ordem_fila"])
     if proximo:
         idx = next((i for i, v in enumerate(v_sorted) if v["id"] == proximo["id"]), 0)
         v_sorted = v_sorted[idx:] + v_sorted[:idx]
 
     nomes = [v["nome"] for v in v_sorted]
 
+    _fila_css = f"""
+        /* Forcar layout horizontal em todos os niveis */
+        .sortable-component,
+        .sortable-component > div,
+        .sortable-component.vertical {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+        }}
+
+        .sortable-container {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            padding: 20px 10px !important;
+            gap: 0px !important;
+            position: relative !important;
+            align-items: center !important;
+            width: 100% !important;
+        }}
+        .sortable-container::-webkit-scrollbar {{ display: none; }}
+
+        .sortable-container-body {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            background: transparent !important;
+            position: relative !important;
+            padding: 15px 5px !important;
+            min-height: auto !important;
+        }}
+
+        /* Linha do tempo de fundo */
+        .sortable-container-body::before {{
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 70px;
+            right: 70px;
+            height: 2px;
+            background: linear-gradient(90deg, rgba(245,158,11,0.18), rgba(55,65,81,0.08));
+            transform: translateY(-50%);
+            z-index: 0;
+            pointer-events: none;
+        }}
+
+        .sortable-item {{
+            flex: 0 0 auto !important;
+            width: 130px !important;
+            height: 78px !important;
+            background: {c["surface"]} !important;
+            border: 1.5px solid {c["border_light"]} !important;
+            border-radius: 12px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            color: {c["text"]} !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            margin: 0 24px 0 0 !important;
+            padding: 0 !important;
+            position: relative !important;
+            cursor: grab !important;
+            z-index: 1 !important;
+            transition: border-color 0.2s, box-shadow 0.2s !important;
+        }}
+
+        .sortable-item:hover {{
+            border-color: {c["text_subtle"]} !important;
+        }}
+
+        /* Seta -> entre os cards */
+        .sortable-item:not(:last-child)::after {{
+            content: '→';
+            position: absolute;
+            right: -20px;
+            top: 50%;
+            transform: translateX(50%) translateY(-50%);
+            color: {c["text_subtle"]};
+            font-size: 18px;
+            font-weight: 400;
+            pointer-events: none;
+            z-index: 2;
+        }}
+
+        /* Card do proximo vendedor */
+        .sortable-item:first-child {{
+            border-color: {c["primary"]} !important;
+            box-shadow: 0 0 16px rgba(245,158,11,0.12) !important;
+            padding-bottom: 14px !important;
+        }}
+
+        /* Badge PROXIMO */
+        .sortable-item:first-child::before {{
+            content: 'PROXIMO';
+            position: absolute;
+            bottom: 7px;
+            background: {c["primary"]};
+            color: #000;
+            font-size: 8px;
+            font-weight: 800;
+            padding: 2px 10px;
+            border-radius: 3px;
+            letter-spacing: 0.6px;
+            white-space: nowrap;
+            text-transform: uppercase;
+        }}
+
+        /* Esconder texto de acessibilidade do dnd-kit */
+        div[id^="DndDescribedBy"],
+        div[id^="DndLiveRegion"],
+        #root > div[style*="display"] {{
+            display: none !important;
+            visibility: hidden !important;
+            position: absolute !important;
+            width: 0 !important;
+            height: 0 !important;
+            overflow: hidden !important;
+        }}
+    """
+
     nova_ordem = sort_items(
         nomes,
         direction="horizontal",
+        custom_style=_fila_css,
         key="fila_final_full_v1",
     )
 
@@ -231,7 +355,7 @@ else:
     st.info("Nenhum vendedor disponível.")
 
 st.markdown(
-    '<div style="font-size:16px; font-weight:600; margin-top:30px; margin-bottom:5px;">Atividades Recentes</div>',
+    '<div style="font-size:16px; font-weight:600; margin-top:20px; margin-bottom:5px;">Atividades Recentes</div>',
     unsafe_allow_html=True,
 )
 with st.container(border=False, height=280):
@@ -245,7 +369,8 @@ with st.container(border=False, height=280):
                 if i < len(ativs) - 1
                 else ""
             )
-            timeline_html += f'<div style="display: flex; gap: 12px; position: relative; padding-bottom: 15px;">{line}<div style="z-index: 1; color: #f59e0b; font-size:12px;">{icon}</div><div><div style="font-size: 12px; color: #f1f5f9; font-weight: 500;">{a["descricao"]}</div><div style="font-size: 10px; color: #94a3b8;">{a["criado_em"]}</div></div></div>'
+            data_fmt = _formatar_data_atividade(a["criado_em"])
+            timeline_html += f'<div style="display: flex; gap: 12px; position: relative; padding-bottom: 15px;">{line}<div style="z-index: 1; color: #f59e0b; font-size:12px;">{icon}</div><div><div style="font-size: 12px; color: #f1f5f9; font-weight: 500;">{a["descricao"]}</div><div style="font-size: 10px; color: #94a3b8;">{data_fmt}</div></div></div>'
         timeline_html += "</div>"
         st.markdown(timeline_html, unsafe_allow_html=True)
 
@@ -255,9 +380,23 @@ st.markdown("---")
 # 5. SEÇÃO DE ANALYTICS (GRID COMPLETO)
 # ============================================
 st.markdown("### Inteligência de Dados")
-c_f1, c_f2, _ = st.columns([1, 1, 3])
-d_ini = c_f1.date_input("Início", value=date.today() - timedelta(days=30))
-d_fim = c_f2.date_input("Fim", value=date.today())
+
+
+def _set_filtro_hoje():
+    st.session_state["analytics_d_ini"] = date.today()
+    st.session_state["analytics_d_fim"] = date.today()
+
+
+if "analytics_d_ini" not in st.session_state:
+    st.session_state["analytics_d_ini"] = date.today() - timedelta(days=30)
+if "analytics_d_fim" not in st.session_state:
+    st.session_state["analytics_d_fim"] = date.today()
+
+c_f1, c_f2, c_f3, _ = st.columns([1, 1, 0.5, 2.5])
+d_ini = c_f1.date_input("Início", key="analytics_d_ini")
+d_fim = c_f2.date_input("Fim", key="analytics_d_fim")
+c_f3.markdown("<div style='height:27px'></div>", unsafe_allow_html=True)
+c_f3.button("Hoje", use_container_width=True, on_click=_set_filtro_hoje)
 
 col_trend, col_funnel = st.columns([1, 1], gap="small")
 with col_trend:
@@ -266,19 +405,35 @@ with col_trend:
             loja_id=loja["loja_id"], data_inicio=d_ini, data_fim=d_fim
         )
         if leads_dia:
-            df_dia = pd.DataFrame(leads_dia)
+            df_dia = pd.DataFrame(leads_dia).sort_values("data")
+            df_dia["data_fmt"] = pd.to_datetime(df_dia["data"]).dt.strftime("%d/%m")
             st.markdown(
                 f'<div style="font-weight:600;margin-bottom:10px;">Fluxo de Leads (Total: {int(df_dia["total"].sum())})</div>',
                 unsafe_allow_html=True,
             )
-            fig_t = px.line(
-                df_dia, x="data", y="total", line_shape="spline", markers=True
-            )
-            fig_t.update_traces(line_color=c["primary"])
+            if len(df_dia) == 1:
+                fig_t = px.bar(df_dia, x="data_fmt", y="total")
+                fig_t.update_traces(marker_color=c["primary"])
+            else:
+                fig_t = px.line(
+                    df_dia, x="data_fmt", y="total", line_shape="spline", markers=True
+                )
+                fig_t.update_traces(line_color=c["primary"])
             fig_t.update_layout(
-                **plotly_defaults, height=250, margin=dict(l=0, r=0, t=10, b=0)
+                **plotly_defaults,
+                height=250,
+                margin=dict(l=0, r=0, t=10, b=0),
+                xaxis_title=None,
+                yaxis_title=None,
+                yaxis=dict(dtick=1),
             )
             st.plotly_chart(fig_t, use_container_width=True)
+        else:
+            st.markdown(
+                '<div style="font-weight:600;margin-bottom:10px;">Fluxo de Leads</div>',
+                unsafe_allow_html=True,
+            )
+            st.caption("Nenhum lead no periodo selecionado.")
 
 with col_funnel:
     with st.container(border=True):
@@ -321,6 +476,8 @@ with col_orig:
                 **plotly_defaults, height=200, margin=dict(l=0, r=10, t=0, b=0)
             )
             st.plotly_chart(fig_o, use_container_width=True)
+        else:
+            st.caption("Nenhum lead no periodo selecionado.")
 
 with col_hora:
     with st.container(border=True):
@@ -339,5 +496,7 @@ with col_hora:
                 **plotly_defaults, height=200, margin=dict(l=0, r=0, t=0, b=0)
             )
             st.plotly_chart(fig_h, use_container_width=True)
+        else:
+            st.caption("Nenhum lead no periodo selecionado.")
 
 st.caption("Lead Automation System | v2.3 Final")

@@ -62,12 +62,18 @@ def show_sidebar_info():
                 left: 16px;
                 right: 16px;
             }
+            /* Botao Sair sem borda */
+            section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:last-child button {
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
+            }
             </style>
             """,
             unsafe_allow_html=True,
         )
         if st.button(
-            ":material/logout: Sair", use_container_width=True, type="secondary"
+            ":material/logout:", use_container_width=True, type="secondary", help="Sair"
         ):
             logout()
 

@@ -184,9 +184,12 @@ def inject_theme_css():
         color: {c["text_muted"]} !important;
     }}
 
-    /* Reduce top padding */
+    /* Reduce top padding — alinhar conteudo com menu lateral */
     .stMainBlockContainer {{
-        padding-top: 2rem !important;
+        padding-top: 0.5rem !important;
+    }}
+    .stAppHeader {{
+        display: none !important;
     }}
 
     /* Sidebar collapse button fix */

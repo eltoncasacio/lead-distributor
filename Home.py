@@ -109,6 +109,7 @@ pg = st.navigation(
         st.Page(
             "pages/1_📊_Dashboard.py", title="Dashboard", icon=":material/dashboard:"
         ),
+        st.Page("pages/4_Leads.py", title="Leads", icon=":material/leaderboard:"),
         st.Page(
             "pages/2_👨‍💼_Gerentes.py",
             title="Gerentes",
@@ -117,7 +118,6 @@ pg = st.navigation(
         st.Page(
             "pages/3_👤_Vendedores.py", title="Vendedores", icon=":material/group:"
         ),
-        st.Page("pages/4_Leads.py", title="Leads", icon=":material/leaderboard:"),
     ]
 )
 

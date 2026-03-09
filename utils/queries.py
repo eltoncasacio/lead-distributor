@@ -51,45 +51,62 @@ def adicionar_gerente(loja_id: str, nome: str, whatsapp: str) -> Dict[str, Any]:
         })
         .execute()
     )
+    if response.data:
+        registrar_atividade(loja_id, "gerente_adicionado", f"Gerente {nome} adicionado")
     return response.data[0] if response.data else None
 
 
-def editar_gerente(gerente_id: str, nome: str, whatsapp: str) -> Dict[str, Any]:
+def editar_gerente(gerente_id: str, nome: str, whatsapp: str, loja_id: str = None) -> Dict[str, Any]:
     """Edita gerente existente."""
     supabase = get_cached_supabase_client()
-    response = (
+    query = (
         supabase.table("gerentes")
         .update({
             "nome": nome,
             "numero_whatsapp": whatsapp
         })
         .eq("id", gerente_id)
-        .execute()
     )
+    if loja_id:
+        query = query.eq("loja_id", loja_id)
+    response = query.execute()
     return response.data[0] if response.data else None
 
 
-def desativar_gerente(gerente_id: str) -> Dict[str, Any]:
+def desativar_gerente(gerente_id: str, loja_id: str = None) -> Dict[str, Any]:
     """Desativa gerente (soft delete)."""
     supabase = get_cached_supabase_client()
-    response = (
+    query = (
         supabase.table("gerentes")
         .update({"ativo": False})
         .eq("id", gerente_id)
-        .execute()
     )
+    if loja_id:
+        query = query.eq("loja_id", loja_id)
+    response = query.execute()
+    if response.data and loja_id:
+        registrar_atividade(loja_id, "gerente_desativado", f"Gerente {response.data[0]['nome']} desativado")
     return response.data[0] if response.data else None
 
 
-def deletar_gerente(gerente_id: str) -> bool:
+def deletar_gerente(gerente_id: str, loja_id: str = None) -> bool:
     """Deleta gerente permanentemente."""
     supabase = get_cached_supabase_client()
-    response = (
+    # Buscar nome antes de deletar (para log)
+    nome_gerente = None
+    if loja_id:
+        info = supabase.table("gerentes").select("nome").eq("id", gerente_id).eq("loja_id", loja_id).execute()
+        nome_gerente = info.data[0]["nome"] if info.data else None
+    query = (
         supabase.table("gerentes")
         .delete()
         .eq("id", gerente_id)
-        .execute()
     )
+    if loja_id:
+        query = query.eq("loja_id", loja_id)
+    query.execute()
+    if nome_gerente and loja_id:
+        registrar_atividade(loja_id, "gerente_removido", f"Gerente {nome_gerente} removido")
     return True
 
 
@@ -837,6 +854,93 @@ def get_ultimo_lead_info(loja_id: str) -> Optional[Dict[str, Any]]:
         "vendedor_nome": lead["vendedores"]["nome"] if lead.get("vendedores") else "N/A",
         "recebido_em": lead["recebido_em"],
     }
+
+
+# ============================================
+# MENSAGENS PRONTAS
+# ============================================
+
+def listar_mensagens_prontas_loja(loja_id: str) -> List[Dict[str, Any]]:
+    """Lista templates padrão da loja (vendedor_id IS NULL)."""
+    supabase = get_cached_supabase_client()
+    response = (
+        supabase.table("mensagens_prontas")
+        .select("*")
+        .eq("loja_id", loja_id)
+        .is_("vendedor_id", "null")
+        .eq("ativo", True)
+        .order("ordem")
+        .execute()
+    )
+    return response.data
+
+
+def listar_mensagens_prontas_vendedor(loja_id: str, vendedor_id: str) -> List[Dict[str, Any]]:
+    """Lista templates de um vendedor específico."""
+    supabase = get_cached_supabase_client()
+    response = (
+        supabase.table("mensagens_prontas")
+        .select("*")
+        .eq("loja_id", loja_id)
+        .eq("vendedor_id", vendedor_id)
+        .eq("ativo", True)
+        .order("ordem")
+        .execute()
+    )
+    return response.data
+
+
+def adicionar_mensagem_pronta(loja_id: str, titulo: str, texto: str, vendedor_id: str = None) -> Dict[str, Any]:
+    """Adiciona nova mensagem pronta."""
+    supabase = get_cached_supabase_client()
+
+    # Calcular próxima ordem
+    query = (
+        supabase.table("mensagens_prontas")
+        .select("ordem")
+        .eq("loja_id", loja_id)
+        .eq("ativo", True)
+    )
+    if vendedor_id:
+        query = query.eq("vendedor_id", vendedor_id)
+    else:
+        query = query.is_("vendedor_id", "null")
+    existentes = query.order("ordem", desc=True).limit(1).execute()
+    proxima_ordem = (existentes.data[0]["ordem"] + 1) if existentes.data else 1
+
+    dados = {
+        "loja_id": loja_id,
+        "titulo": titulo,
+        "texto": texto,
+        "ordem": proxima_ordem,
+    }
+    if vendedor_id:
+        dados["vendedor_id"] = vendedor_id
+
+    response = supabase.table("mensagens_prontas").insert(dados).execute()
+    return response.data[0] if response.data else None
+
+
+def editar_mensagem_pronta(mensagem_id: str, titulo: str, texto: str, loja_id: str) -> Dict[str, Any]:
+    """Edita mensagem pronta existente."""
+    supabase = get_cached_supabase_client()
+    response = (
+        supabase.table("mensagens_prontas")
+        .update({"titulo": titulo, "texto": texto})
+        .eq("id", mensagem_id)
+        .eq("loja_id", loja_id)
+        .execute()
+    )
+    return response.data[0] if response.data else None
+
+
+def deletar_mensagem_pronta(mensagem_id: str, loja_id: str) -> bool:
+    """Deleta mensagem pronta (soft delete via ativo=false)."""
+    supabase = get_cached_supabase_client()
+    supabase.table("mensagens_prontas").update(
+        {"ativo": False}
+    ).eq("id", mensagem_id).eq("loja_id", loja_id).execute()
+    return True
 
 
 def get_metricas_funil(
