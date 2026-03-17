@@ -73,7 +73,7 @@ with st.expander("Filtros", expanded=True):
         "Buscar por nome, telefone ou anuncio:",
         key="busca_leads",
         placeholder="Digite para filtrar...",
-        debounce=1000,
+        debounce=300,
     )
 
 # Validação de datas
