@@ -64,9 +64,15 @@ with st.expander("Filtros", expanded=True):
     with col_origem:
         filtro_origem = st.selectbox(
             "Origem:",
-            ["Todas", "iCarros", "NaPista", "WhatsApp Direto"],
+            ["Todas", "iCarros", "NaPista", "Mobiauto", "WhatsApp Direto"],
             key="filtro_origem",
         )
+
+    busca_texto = st.text_input(
+        "Buscar por nome, telefone ou anuncio:",
+        key="busca_leads",
+        placeholder="Digite para filtrar...",
+    )
 
 # Validação de datas
 if data_inicio > data_fim:
@@ -96,6 +102,16 @@ with loading_spinner("Carregando leads..."):
         vendedor_id=vendedor_id_filtro,
         origem=filtro_origem if filtro_origem != "Todas" else None,
     )
+
+# Filtro por texto (nome, telefone ou anuncio)
+if busca_texto:
+    _termo = busca_texto.lower()
+    leads_lista = [
+        l for l in leads_lista
+        if _termo in (l.get("nome_cliente") or "").lower()
+        or _termo in (l.get("numero_cliente") or "").lower()
+        or _termo in (l.get("anuncio") or "").lower()
+    ]
 
 # Indicador de período selecionado
 duracao = (data_fim - data_inicio).days + 1
