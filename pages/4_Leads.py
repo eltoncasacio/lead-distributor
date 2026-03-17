@@ -139,7 +139,7 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
         return
 
     df = pd.DataFrame(leads)
-    df["recebido_em"] = pd.to_datetime(df["recebido_em"])
+    df["recebido_em"] = pd.to_datetime(df["recebido_em"], format="ISO8601")
     df["Data/Hora"] = df["recebido_em"].dt.strftime("%d/%m/%Y %H:%M")
 
     # Colunas base (Status primeiro quando presente)
