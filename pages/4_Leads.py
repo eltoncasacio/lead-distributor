@@ -20,6 +20,7 @@ from utils.queries import (
     registrar_atividade,
 )
 from utils.supabase_client import get_cached_supabase_client
+from st_keyup import st_keyup
 
 # Header compacto
 render_page_header("Leads")
@@ -68,10 +69,11 @@ with st.expander("Filtros", expanded=True):
             key="filtro_origem",
         )
 
-    busca_texto = st.text_input(
+    busca_texto = st_keyup(
         "Buscar por nome, telefone ou anuncio:",
         key="busca_leads",
         placeholder="Digite para filtrar...",
+        debounce=1000,
     )
 
 # Validação de datas
