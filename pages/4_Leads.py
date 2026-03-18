@@ -131,21 +131,19 @@ st.caption(
 
 # Criar contadores para cada status
 todos = len(leads_lista)
-novos = len([l for l in leads_lista if l["status_lead"] == "novo"])
-atendidos = len([l for l in leads_lista if l["status_lead"] == "atendido"])
 negociando = len([l for l in leads_lista if l["status_lead"] == "negociando"])
-desistiu = len([l for l in leads_lista if l["status_lead"] == "desistiu"])
-vendas = len([l for l in leads_lista if l["status_lead"] == "venda_concretizada"])
+sem_resposta = len([l for l in leads_lista if l["status_lead"] == "sem_resposta"])
+sem_interesse = len([l for l in leads_lista if l["status_lead"] == "sem_interesse"])
+vendido = len([l for l in leads_lista if l["status_lead"] == "vendido"])
 
 # Tabs individuais por status
-tab_todos, tab_novo, tab_atendido, tab_negociando, tab_desistiu, tab_venda = st.tabs(
+tab_todos, tab_negociando, tab_sem_resposta, tab_sem_interesse, tab_vendido = st.tabs(
     [
         f"Todos ({todos})",
-        f"Novo ({novos})",
-        f"Atendido ({atendidos})",
         f"Negociando ({negociando})",
-        f"Desistiu ({desistiu})",
-        f"Venda ({vendas})",
+        f"Sem Resposta ({sem_resposta})",
+        f"Sem Interesse ({sem_interesse})",
+        f"Vendido ({vendido})",
     ]
 )
 
@@ -221,11 +219,10 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
 
         # === RENDERIZAR DATA EDITOR ===
         status_options = [
-            "novo",
-            "atendido",
             "negociando",
-            "desistiu",
-            "venda_concretizada",
+            "sem_resposta",
+            "sem_interesse",
+            "vendido",
         ]
 
         # Key estável (não baseada em hash dos dados para manter estado do widget)
@@ -271,11 +268,10 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
             try:
                 # Comparar row-by-row para salvar apenas o que mudou
                 status_map = {
-                    "novo": "Novo",
-                    "atendido": "Atendido",
                     "negociando": "Negociando",
-                    "desistiu": "Desistiu",
-                    "venda_concretizada": "Venda Fechada",
+                    "sem_resposta": "Sem Resposta",
+                    "sem_interesse": "Sem Interesse",
+                    "vendido": "Vendido",
                 }
 
                 for idx, row in edited_df.iterrows():
@@ -341,22 +337,6 @@ with tab_todos:
         )
 
 # Tabs por status: SEM coluna Status (redundante)
-with tab_novo:
-    with st.container(border=True):
-        st.markdown("#### Leads Novos")
-        leads_novos = [l for l in leads_lista if l["status_lead"] == "novo"]
-        render_leads_table_filtrada(
-            leads_novos, mostrar_coluna_status=False, editavel=False
-        )
-
-with tab_atendido:
-    with st.container(border=True):
-        st.markdown("#### Leads Atendidos")
-        leads_atendidos = [l for l in leads_lista if l["status_lead"] == "atendido"]
-        render_leads_table_filtrada(
-            leads_atendidos, mostrar_coluna_status=False, editavel=False
-        )
-
 with tab_negociando:
     with st.container(border=True):
         st.markdown("#### Leads em Negociacao")
@@ -365,22 +345,28 @@ with tab_negociando:
             leads_negociando, mostrar_coluna_status=False, editavel=False
         )
 
-with tab_desistiu:
+with tab_sem_resposta:
     with st.container(border=True):
-        st.markdown("#### Leads que Desistiram")
-        leads_desistiu = [l for l in leads_lista if l["status_lead"] == "desistiu"]
+        st.markdown("#### Leads Sem Resposta")
+        leads_sem_resposta = [l for l in leads_lista if l["status_lead"] == "sem_resposta"]
         render_leads_table_filtrada(
-            leads_desistiu, mostrar_coluna_status=False, editavel=False
+            leads_sem_resposta, mostrar_coluna_status=False, editavel=False
         )
 
-with tab_venda:
+with tab_sem_interesse:
+    with st.container(border=True):
+        st.markdown("#### Leads Sem Interesse")
+        leads_sem_interesse = [l for l in leads_lista if l["status_lead"] == "sem_interesse"]
+        render_leads_table_filtrada(
+            leads_sem_interesse, mostrar_coluna_status=False, editavel=False
+        )
+
+with tab_vendido:
     with st.container(border=True):
         st.markdown("#### Vendas Concretizadas")
-        leads_venda = [
-            l for l in leads_lista if l["status_lead"] == "venda_concretizada"
-        ]
+        leads_vendido = [l for l in leads_lista if l["status_lead"] == "vendido"]
         render_leads_table_filtrada(
-            leads_venda, mostrar_coluna_status=False, editavel=False
+            leads_vendido, mostrar_coluna_status=False, editavel=False
         )
 
 # ============================================
@@ -395,18 +381,15 @@ with st.expander("Dicas de Uso"):
     1. Use os **filtros** no topo para encontrar leads especificos
     2. Navegue pelas **tabs** para ver diferentes contextos:
        - **Todos**: Visao completa de todos os leads (editavel)
-       - **Novo / Atendido / Negociando / Desistiu / Venda**: Filtros por status (somente leitura)
+       - **Negociando / Sem Resposta / Sem Interesse / Vendido**: Filtros por status (somente leitura)
     3. Na tab **Todos**, clique em uma celula da coluna **Status** para alterar
-    4. **Salvamento automatico**: Mudancas sao salvas instantaneamente ✨
-       - Uma notificacao aparecera confirmando o salvamento
-       - Nao e necessario clicar em nenhum botao
+    4. **Salvamento automatico**: Mudancas sao salvas instantaneamente
 
     **Status disponiveis:**
-    - **Novo**: Lead recem-chegado, ainda nao foi atendido
-    - **Atendido**: Vendedor ja entrou em contato inicial
-    - **Negociando**: Cliente demonstrou interesse, negociacao em andamento
-    - **Desistiu**: Cliente nao tem mais interesse na compra
-    - **Venda Concretizada**: Venda fechada com sucesso
+    - **Negociando**: Lead encaminhado ao vendedor, em negociacao
+    - **Sem Resposta**: Cliente nao respondeu ao contato do vendedor
+    - **Sem Interesse**: Cliente respondeu mas nao tem interesse
+    - **Vendido**: Venda fechada com sucesso
 
     **Notas:**
     - Apenas a tab **Todos** permite edicao

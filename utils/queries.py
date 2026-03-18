@@ -761,7 +761,7 @@ def get_leads_lista(
             "anuncio": lead.get("anuncio", "WhatsApp Direto"),
             "numero_cliente": lead["numero_cliente"],
             "vendedor_nome": lead["vendedores"]["nome"] if lead.get("vendedores") else "N/A",
-            "status_lead": lead.get("status_lead", "novo"),
+            "status_lead": lead.get("status_lead", "negociando"),
             "origem": lead_origem,
         })
 
@@ -960,11 +960,10 @@ def get_metricas_funil(
 
     Returns:
         {
-            "novo": 100,
-            "atendido": 80,
             "negociando": 30,
-            "venda_concretizada": 15,
-            "desistiu": 35
+            "sem_resposta": 20,
+            "sem_interesse": 10,
+            "vendido": 15
         }
     """
     supabase = get_cached_supabase_client()
@@ -992,24 +991,22 @@ def get_metricas_funil(
 
     if not response.data:
         return {
-            "novo": 0,
-            "atendido": 0,
             "negociando": 0,
-            "venda_concretizada": 0,
-            "desistiu": 0
+            "sem_resposta": 0,
+            "sem_interesse": 0,
+            "vendido": 0,
         }
 
     # Contar por status
     contagem = {
-        "novo": 0,
-        "atendido": 0,
         "negociando": 0,
-        "venda_concretizada": 0,
-        "desistiu": 0
+        "sem_resposta": 0,
+        "sem_interesse": 0,
+        "vendido": 0,
     }
 
     for lead in response.data:
-        status = lead.get("status_lead", "novo")
+        status = lead.get("status_lead", "negociando")
         if status in contagem:
             contagem[status] += 1
 

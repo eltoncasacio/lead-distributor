@@ -440,10 +440,11 @@ with col_funnel:
         f_data = get_metricas_funil(
             loja_id=loja["loja_id"], data_inicio=d_ini, data_fim=d_fim
         )
+        _total_leads = f_data["negociando"] + f_data["sem_resposta"] + f_data["sem_interesse"] + f_data["vendido"]
         fig_f = go.Figure(
             go.Funnel(
-                y=["Leads", "Atendidos", "Vendas"],
-                x=[f_data["novo"], f_data["atendido"], f_data["venda_concretizada"]],
+                y=["Leads", "Negociando", "Vendido"],
+                x=[_total_leads, f_data["negociando"], f_data["vendido"]],
                 marker=dict(color=[c["primary"], "#2563EB", "#10B981"]),
             )
         )
@@ -486,7 +487,7 @@ with col_hora:
         )
         if horas:
             df_h = pd.DataFrame(horas)
-            fig_h = px.bar(df_h, x="hora_formatada", y="total")
+            fig_h = px.bar(df_h, x="hora_formatada", y="total", labels={"hora_formatada": "Hora"})
             fig_h.update_traces(marker_color=c["primary"])
             fig_h.update_layout(
                 **plotly_defaults, height=200, margin=dict(l=0, r=0, t=0, b=0)
