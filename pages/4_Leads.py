@@ -43,6 +43,7 @@ with st.expander("Filtros", expanded=True):
             value=date.today() - timedelta(days=30),
             max_value=date.today(),
             key="data_inicio_leads",
+            format="DD/MM/YYYY",
         )
 
     with col_fim:
@@ -51,6 +52,7 @@ with st.expander("Filtros", expanded=True):
             value=date.today(),
             max_value=date.today(),
             key="data_fim_leads",
+            format="DD/MM/YYYY",
         )
 
     with col_vendedor:
@@ -157,8 +159,8 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
         return
 
     df = pd.DataFrame(leads)
-    df["recebido_em"] = pd.to_datetime(df["recebido_em"], format="ISO8601")
-    df["Data/Hora"] = df["recebido_em"].dt.strftime("%d/%m/%Y %H:%M")
+    df["recebido_em"] = pd.to_datetime(df["recebido_em"], format="ISO8601", utc=True)
+    df["Data/Hora"] = df["recebido_em"].dt.tz_convert("America/Sao_Paulo").dt.strftime("%d/%m/%Y %H:%M")
 
     # Colunas base (Status primeiro quando presente)
     if mostrar_coluna_status:

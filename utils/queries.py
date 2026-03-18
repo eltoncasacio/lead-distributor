@@ -4,7 +4,10 @@ Todas queries filtradas por loja_id para garantir isolamento.
 """
 from typing import List, Optional, Dict, Any
 from datetime import date
+import zoneinfo
 from .supabase_client import get_cached_supabase_client
+
+_TZ_SP = zoneinfo.ZoneInfo("America/Sao_Paulo")
 
 
 # ============================================
@@ -411,13 +414,11 @@ def get_leads_ontem(loja_id: str) -> int:
     """Retorna total de leads recebidos ontem (timezone America/Sao_Paulo)."""
     supabase = get_cached_supabase_client()
     from datetime import datetime, timedelta, time
-    import zoneinfo
 
-    tz_sp = zoneinfo.ZoneInfo("America/Sao_Paulo")
-    agora_sp = datetime.now(tz_sp)
+    agora_sp = datetime.now(_TZ_SP)
     ontem = agora_sp.date() - timedelta(days=1)
-    dt_inicio = datetime.combine(ontem, time.min, tzinfo=tz_sp)
-    dt_fim = datetime.combine(ontem, time.max, tzinfo=tz_sp)
+    dt_inicio = datetime.combine(ontem, time.min, tzinfo=_TZ_SP)
+    dt_fim = datetime.combine(ontem, time.max, tzinfo=_TZ_SP)
 
     response = (
         supabase.table("leads")
@@ -485,11 +486,11 @@ def get_leads_por_dia(
 
     # Prioridade: datas customizadas > dias > default 30
     if data_inicio and data_fim:
-        dt_inicio = datetime.combine(data_inicio, time.min)
-        dt_fim = datetime.combine(data_fim, time.max)
+        dt_inicio = datetime.combine(data_inicio, time.min, tzinfo=_TZ_SP)
+        dt_fim = datetime.combine(data_fim, time.max, tzinfo=_TZ_SP)
     else:
         dias = dias or 30
-        agora = datetime.now()
+        agora = datetime.now(_TZ_SP)
         dt_inicio = agora - timedelta(days=dias)
         dt_fim = agora
 
@@ -506,11 +507,11 @@ def get_leads_por_dia(
     if not response.data:
         return []
 
-    # Agrupar por data manualmente
+    # Agrupar por data manualmente (convertendo para timezone SP)
     contagem = {}
     for lead in response.data:
         recebido = datetime.fromisoformat(lead["recebido_em"].replace("Z", "+00:00"))
-        data_str = recebido.date().isoformat()
+        data_str = recebido.astimezone(_TZ_SP).date().isoformat()
         contagem[data_str] = contagem.get(data_str, 0) + 1
 
     return [{"data": data, "total": total} for data, total in sorted(contagem.items(), reverse=True)]
@@ -526,7 +527,7 @@ def get_leads_por_vendedor(loja_id: str, dias: int = 30) -> List[Dict[str, Any]]
     from datetime import datetime, timedelta
 
     # Calcular data limite
-    data_limite = datetime.now() - timedelta(days=dias)
+    data_limite = datetime.now(_TZ_SP) - timedelta(days=dias)
 
     # Buscar leads + JOIN com vendedores
     response = (
@@ -572,11 +573,11 @@ def get_leads_por_hora(
 
     # Prioridade: datas customizadas > dias > default 30
     if data_inicio and data_fim:
-        dt_inicio = datetime.combine(data_inicio, time.min)
-        dt_fim = datetime.combine(data_fim, time.max)
+        dt_inicio = datetime.combine(data_inicio, time.min, tzinfo=_TZ_SP)
+        dt_fim = datetime.combine(data_fim, time.max, tzinfo=_TZ_SP)
     else:
         dias = dias or 30
-        agora = datetime.now()
+        agora = datetime.now(_TZ_SP)
         dt_inicio = agora - timedelta(days=dias)
         dt_fim = agora
 
@@ -597,12 +598,12 @@ def get_leads_por_hora(
             for hora in range(24)
         ]
 
-    # Extrair hora e agrupar manualmente
+    # Extrair hora e agrupar manualmente (convertendo para timezone SP)
     contagem = {}
 
     for lead in response.data:
         recebido = datetime.fromisoformat(lead["recebido_em"].replace("Z", "+00:00"))
-        hora = recebido.hour
+        hora = recebido.astimezone(_TZ_SP).hour
         contagem[hora] = contagem.get(hora, 0) + 1
 
     # Criar lista com TODAS as 24 horas + formato pt-BR
@@ -644,12 +645,12 @@ def get_leads_por_origem_comparativo(
 
     # Calcular período atual
     if data_inicio and data_fim:
-        dt_inicio_atual = datetime.combine(data_inicio, time.min)
-        dt_fim_atual = datetime.combine(data_fim, time.max)
+        dt_inicio_atual = datetime.combine(data_inicio, time.min, tzinfo=_TZ_SP)
+        dt_fim_atual = datetime.combine(data_fim, time.max, tzinfo=_TZ_SP)
         duracao = (data_fim - data_inicio).days
     else:
         dias = dias or 30
-        agora = datetime.now()
+        agora = datetime.now(_TZ_SP)
         dt_inicio_atual = agora - timedelta(days=dias)
         dt_fim_atual = agora
         duracao = dias
@@ -677,11 +678,10 @@ def get_leads_por_origem_comparativo(
         for lead in response.data:
             origem = lead.get("origem") or "WhatsApp Direto"
             recebido = datetime.fromisoformat(lead["recebido_em"].replace("Z", "+00:00"))
-            recebido_naive = recebido.replace(tzinfo=None)
 
-            if dt_inicio_atual <= recebido_naive <= dt_fim_atual:
+            if dt_inicio_atual <= recebido <= dt_fim_atual:
                 atual[origem] = atual.get(origem, 0) + 1
-            elif dt_inicio_anterior <= recebido_naive <= dt_fim_anterior:
+            elif dt_inicio_anterior <= recebido <= dt_fim_anterior:
                 anterior[origem] = anterior.get(origem, 0) + 1
 
     return {"atual": atual, "anterior": anterior}
@@ -715,11 +715,11 @@ def get_leads_lista(
 
     # Prioridade: datas customizadas > dias > default 30
     if data_inicio and data_fim:
-        dt_inicio = datetime.combine(data_inicio, time.min)
-        dt_fim = datetime.combine(data_fim, time.max)
+        dt_inicio = datetime.combine(data_inicio, time.min, tzinfo=_TZ_SP)
+        dt_fim = datetime.combine(data_fim, time.max, tzinfo=_TZ_SP)
     else:
         dias = dias or 30
-        agora = datetime.now()
+        agora = datetime.now(_TZ_SP)
         dt_inicio = agora - timedelta(days=dias)
         dt_fim = agora
 
@@ -972,11 +972,11 @@ def get_metricas_funil(
 
     # Prioridade: datas customizadas > dias > default 30
     if data_inicio and data_fim:
-        dt_inicio = datetime.combine(data_inicio, time.min)
-        dt_fim = datetime.combine(data_fim, time.max)
+        dt_inicio = datetime.combine(data_inicio, time.min, tzinfo=_TZ_SP)
+        dt_fim = datetime.combine(data_fim, time.max, tzinfo=_TZ_SP)
     else:
         dias = dias or 30
-        agora = datetime.now()
+        agora = datetime.now(_TZ_SP)
         dt_inicio = agora - timedelta(days=dias)
         dt_fim = agora
 

@@ -388,8 +388,8 @@ if "analytics_d_fim" not in st.session_state:
     st.session_state["analytics_d_fim"] = date.today()
 
 c_f1, c_f2, c_f3, _ = st.columns([1, 1, 0.5, 2.52])
-d_ini = c_f1.date_input("Início", key="analytics_d_ini")
-d_fim = c_f2.date_input("Fim", key="analytics_d_fim")
+d_ini = c_f1.date_input("Início", key="analytics_d_ini", format="DD/MM/YYYY")
+d_fim = c_f2.date_input("Fim", key="analytics_d_fim", format="DD/MM/YYYY")
 c_f3.markdown("<div style='height:27px'></div>", unsafe_allow_html=True)
 c_f3.button("Hoje", use_container_width=True, on_click=_set_filtro_hoje)
 
@@ -414,6 +414,7 @@ with col_trend:
                     df_dia, x="data_fmt", y="total", line_shape="spline", markers=True
                 )
                 fig_t.update_traces(line_color=c["primary"])
+            fig_t.update_traces(hovertemplate="total=%{y}<extra></extra>")
             fig_t.update_layout(
                 **plotly_defaults,
                 height=250,
