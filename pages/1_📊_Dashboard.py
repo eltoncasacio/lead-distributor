@@ -443,13 +443,13 @@ with col_funnel:
         _total_leads = f_data["negociando"] + f_data["sem_resposta"] + f_data["sem_interesse"] + f_data["vendido"]
         fig_f = go.Figure(
             go.Funnel(
-                y=["Leads", "Negociando", "Vendido"],
-                x=[_total_leads, f_data["negociando"], f_data["vendido"]],
-                marker=dict(color=[c["primary"], "#2563EB", "#10B981"]),
+                y=["Leads Recebidos", "Sem Resposta", "Sem Interesse", "Vendido"],
+                x=[_total_leads, f_data["sem_resposta"], f_data["sem_interesse"], f_data["vendido"]],
+                marker=dict(color=[c["primary"], "#F59E0B", "#EF4444", "#10B981"]),
             )
         )
         fig_f.update_layout(
-            **plotly_defaults, height=250, margin=dict(l=40, r=40, t=10, b=10)
+            **plotly_defaults, height=280, margin=dict(l=40, r=40, t=10, b=10)
         )
         st.plotly_chart(fig_f, use_container_width=True)
 
