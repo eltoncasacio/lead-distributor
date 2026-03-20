@@ -136,7 +136,7 @@ def render_kpi_card(icon_key, label, value, subtext="", sub_color=None):
     st.markdown(
         f"""
         <div class="stCard" style="padding: 20px 24px; min-height: 140px; display: flex; flex-direction: column; gap: 6px;">
-            <div style="width: 32px; height: 32px; background: {c["background"]}; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
+            <div>
                 {_ICONS[icon_key]} <span style="color: {sub_color}; font-size: 11px; font-weight: 500;">{subtext}</span>
             </div>
             <div style="color: {c["text_muted"]}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">{label}</div>

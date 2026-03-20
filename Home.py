@@ -99,22 +99,50 @@ st.markdown(
         margin-left: 4.5rem;
     }
 
-    /* === Sidebar flex layout: header acima do nav, logout no fundo === */
+    /* Sidebar flex column: empurrar logout para o rodapé */
     [data-testid="stSidebarContent"] {
         display: flex !important;
         flex-direction: column !important;
-        height: 100% !important;
+        min-height: 100vh !important;
+        height: 100%;
     }
 
-    /* Mover header acima do nav (order 10 < nav order 0) */
-    [data-testid="stSidebarContent"] > :has(#sidebar-header) {
-        order: -1 !important;
+    /* Todos os filhos diretos são flex items */
+    [data-testid="stSidebarContent"] > div {
+        flex-shrink: 0;
     }
 
-    /* Mover logout para o fundo (order 1 > nav order 0) */
-    [data-testid="stSidebarContent"] > :has(#sidebar-logout) {
-        order: 1 !important;
-        margin-top: auto !important;
+    /* Espaçamento entre os links de navegação */
+    [data-testid="stSidebarNav"] a {
+        margin-bottom: 0.5rem !important;
+    }
+
+    /* O container que contém o spacer deve crescer para empurrar elementos abaixo */
+    [data-testid="stSidebarContent"] > div:has(#sidebar-flex-spacer) {
+        flex: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    /* Spacer interno */
+    #sidebar-flex-spacer {
+        flex: 1 !important;
+        min-height: 20px !important;
+    }
+
+    /* Container do logout - remover bordas do botão e adicionar separação visual */
+    #sidebar-logout-container {
+        border-top: 1px solid rgba(0,0,0,0.05);
+        padding-top: 1rem !important;
+        margin-top: 1rem !important;
+    }
+
+    /* Botão logout sem bordas */
+    #sidebar-logout-container button,
+    [data-testid="stSidebarContent"] button[kind="secondary"] {
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
     }
 
     /* Esconder header inteiro quando sidebar recolhida */
@@ -172,7 +200,16 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-# Definir paginas (Dashboard = primeira = padrao)
+    # Separador visual entre header e navegação
+    st.markdown('<div style="height: 1.5rem;"></div>', unsafe_allow_html=True)
+
+    # Navegacao manual (ordem visual = ordem do codigo)
+    st.page_link("pages/1_📊_Dashboard.py", label="Dashboard", icon=":material/dashboard:")
+    st.page_link("pages/4_Leads.py", label="Leads", icon=":material/leaderboard:")
+    st.page_link("pages/2_👨‍💼_Gerentes.py", label="Gerentes", icon=":material/supervisor_account:")
+    st.page_link("pages/3_👤_Vendedores.py", label="Vendedores", icon=":material/group:")
+
+# Definir paginas (Dashboard = primeira = padrao, nav oculto)
 pg = st.navigation(
     [
         st.Page(
@@ -187,7 +224,8 @@ pg = st.navigation(
         st.Page(
             "pages/3_👤_Vendedores.py", title="Vendedores", icon=":material/group:"
         ),
-    ]
+    ],
+    position="hidden",
 )
 
 # Sidebar: info da conta + botao Sair

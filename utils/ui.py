@@ -51,25 +51,23 @@ def show_sidebar_info():
         return
 
     with st.sidebar:
-        # Marker para CSS :has() identificar o wrapper do logout
-        st.markdown(
-            """
-            <div id="sidebar-logout"></div>
-            <style>
-            /* Botao Sair sem borda */
-            [data-testid="stSidebarContent"] > :has(#sidebar-logout) button {
-                border: none !important;
-                outline: none !important;
-                box-shadow: none !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
+        # Spacer flexível que empurra o botão logout para baixo
+        st.markdown('<div id="sidebar-flex-spacer"></div>', unsafe_allow_html=True)
+
+        # Wrapper para aplicar estilos ao botão logout
+        st.markdown('<div id="sidebar-logout-container">', unsafe_allow_html=True)
+
+        # Botão de logout
         if st.button(
-            ":material/logout:", use_container_width=True, type="secondary", help="Sair"
+            ":material/logout:",
+            use_container_width=True,
+            type="secondary",
+            help="Sair",
+            key="logout_button"
         ):
             logout()
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_metric_card(label: str, value, delta=None, help_text=None):
