@@ -418,7 +418,7 @@ with col_trend:
             df_dia = pd.DataFrame(leads_dia).sort_values("data")
             df_dia["data_fmt"] = pd.to_datetime(df_dia["data"]).dt.strftime("%d/%m")
             st.markdown(
-                f'<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c['text']}">Fluxo de Leads (Total: {int(df_dia["total"].sum())})</div>',
+                f'<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c["text"]}">Fluxo de Leads (Total: {int(df_dia["total"].sum())})</div>',
                 unsafe_allow_html=True,
             )
             if len(df_dia) == 1:
@@ -441,7 +441,7 @@ with col_trend:
             st.plotly_chart(fig_t, use_container_width=True)
         else:
             st.markdown(
-                '<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c['text']}">Fluxo de Leads</div>',
+                f'<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c["text"]}">Fluxo de Leads</div>',
                 unsafe_allow_html=True,
             )
             st.caption("Nenhum lead no periodo selecionado.")
@@ -449,7 +449,7 @@ with col_trend:
 with col_funnel:
     with st.container(border=True):
         st.markdown(
-            '<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c['text']}">Funil de Vendas</div>',
+            f'<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c["text"]}">Funil de Vendas</div>',
             unsafe_allow_html=True,
         )
         f_data = get_metricas_funil(
@@ -472,7 +472,7 @@ col_orig, col_hora = st.columns(2, gap="small")
 with col_orig:
     with st.container(border=True):
         st.markdown(
-            '<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c['text']}">Leads por Origem</div>',
+            f'<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c["text"]}">Leads por Origem</div>',
             unsafe_allow_html=True,
         )
         origens = get_leads_por_origem_comparativo(
@@ -494,7 +494,7 @@ with col_orig:
 with col_hora:
     with st.container(border=True):
         st.markdown(
-            '<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c['text']}">Leads por Hora</div>',
+            f'<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c["text"]}">Leads por Hora</div>',
             unsafe_allow_html=True,
         )
         horas = get_leads_por_hora(
