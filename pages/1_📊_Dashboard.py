@@ -71,11 +71,10 @@ plotly_defaults = get_plotly_layout_defaults()
 st.markdown(
     f"""
     <style>
-    .main {{ background-color: #0b0f19; color: #e5e7eb; }}
-    .stCard {{ 
-        background-color: #111827; 
-        border: 1px solid #1f2937; 
-        border-radius: 12px; 
+    .stCard {{
+        background-color: {c["surface"]};
+        border: 1px solid {c["border"]};
+        border-radius: 12px;
     }}
     
     /* Fila horizontal — forcar em todos os niveis */
@@ -134,10 +133,10 @@ if leads_ontem > 0:
     _variacao = round(((_hoje - leads_ontem) / leads_ontem) * 100)
     _sinal = "+" if _variacao > 0 else ""
     _sub_leads = f"{_sinal}{_variacao}% vs ontem"
-    _sub_cor = "#10B981" if _variacao >= 0 else "#EF4444"
+    _sub_cor = c["success"] if _variacao >= 0 else c["error"]
 elif _hoje > 0:
     _sub_leads = f"+{_hoje} vs ontem"
-    _sub_cor = "#10B981"
+    _sub_cor = c["success"]
 else:
     _sub_leads = ""
     _sub_cor = None
@@ -157,7 +156,7 @@ def render_kpi_card(icon_key, label, value, subtext="", sub_color=None):
     st.markdown(
         f"""
         <div class="stCard" style="padding: 10px 20px; min-height: 135px; display: flex; flex-direction: column; gap: 8px;">
-            <div style="width: 24px; height: 24px; background: #1e293b; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px;">
+            <div style="width: 24px; height: 24px; background: {c["primary_bg"]}; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px;">
                 {_ICONS[icon_key]}
             </div>
             <div style="color: {c["text_muted"]}; font-size: 14px;">{label}</div>
@@ -198,7 +197,7 @@ st.markdown("")
 
 
 st.markdown(
-    '<div style="color:white; font-size:16px; font-weight:600; margin-top:50px;">Fila de Distribuição <span style="color:#94a3b8; font-size:12px;"> (Arraste para reordenar a fila)</span></div>',
+    f'<div style="color:{c["text"]}; font-size:16px; font-weight:600; margin-top:50px;">Fila de Distribuição <span style="color:{c["text_muted"]}; font-size:12px;"> (Arraste para reordenar a fila)</span></div>',
     unsafe_allow_html=True,
 )
 
@@ -238,7 +237,7 @@ if vendedores_ativos:
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             align-items: center !important;
-            background: 1e293b !important;
+            background: {c["surface"]} !important;
             position: relative !important;
             padding: 15px 10px !important;
             min-height: auto !important;
@@ -253,7 +252,7 @@ if vendedores_ativos:
             left: 70px;
             right: 70px;
             height: 15px;
-            background: linear-gradient(90deg, rgba(245,158,11,0.18), rgba(55,65,81,0.08));
+            background: linear-gradient(90deg, rgba(14,165,233,0.12), rgba(14,165,233,0.03));
             transform: translateY(-50%);
             z-index: 0;
             pointer-events: none;
@@ -302,7 +301,7 @@ if vendedores_ativos:
         /* Card do proximo vendedor */
         .sortable-item:first-child {{
             border-color: {c["primary"]} !important;
-            box-shadow: 0 0 16px rgba(245,158,11,0.12) !important;
+            box-shadow: 0 0 16px rgba(14,165,233,0.15) !important;
             padding-bottom: 14px !important;
         }}
 
@@ -312,7 +311,7 @@ if vendedores_ativos:
             position: absolute;
             bottom: 7px;
             background: {c["primary"]};
-            color: #000;
+            color: #fff;
             font-size: 8px;
             font-weight: 800;
             padding: 2px 10px;
@@ -356,16 +355,16 @@ st.markdown(
 with st.container(border=False, height=280):
     ativs = get_atividades_recentes(loja["loja_id"], limite=8)
     if ativs:
-        timeline_html = '<div style="background: rgba(30, 41, 59, 0.2); border-radius: 8px; padding: 15px;">'
+        timeline_html = f'<div style="background: {c["surface"]}; border: 1px solid {c["border"]}; border-radius: 8px; padding: 15px;">'
         for i, a in enumerate(ativs):
             icon = "➢"
             line = (
-                '<div style="position: absolute; left: 10px; top: 25px; bottom: 0; width: 1.5px; background: #334155;"></div>'
+                f'<div style="position: absolute; left: 10px; top: 25px; bottom: 0; width: 1.5px; background: {c["border"]};"></div>'
                 if i < len(ativs) - 1
                 else ""
             )
             data_fmt = _formatar_data_atividade(a["criado_em"])
-            timeline_html += f'<div style="display: flex; gap: 12px; position: relative; padding-bottom: 15px;">{line}<div style="z-index: 1; color: #f59e0b; font-size:12px;">{icon}</div><div><div style="font-size: 12px; color: #f1f5f9; font-weight: 500;">{a["descricao"]}</div><div style="font-size: 10px; color: #94a3b8;">{data_fmt}</div></div></div>'
+            timeline_html += f'<div style="display: flex; gap: 12px; position: relative; padding-bottom: 15px;">{line}<div style="z-index: 1; color: {c["primary"]}; font-size:12px;">{icon}</div><div><div style="font-size: 12px; color: {c["text"]}; font-weight: 500;">{a["descricao"]}</div><div style="font-size: 10px; color: {c["text_muted"]};">{data_fmt}</div></div></div>'
         timeline_html += "</div>"
         st.markdown(timeline_html, unsafe_allow_html=True)
 
@@ -445,7 +444,7 @@ with col_funnel:
             go.Funnel(
                 y=["Leads Recebidos", "Sem Resposta", "Sem Interesse", "Vendido"],
                 x=[_total_leads, f_data["sem_resposta"], f_data["sem_interesse"], f_data["vendido"]],
-                marker=dict(color=[c["primary"], "#F59E0B", "#EF4444", "#10B981"]),
+                marker=dict(color=[c["primary"], c["warning"], c["error"], c["success"]]),
             )
         )
         fig_f.update_layout(
