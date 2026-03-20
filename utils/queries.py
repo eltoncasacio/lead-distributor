@@ -3,7 +3,7 @@ Queries SQL para o app.
 Todas queries filtradas por loja_id para garantir isolamento.
 """
 from typing import List, Optional, Dict, Any
-from datetime import date
+from datetime import date, datetime
 import zoneinfo
 from .supabase_client import get_cached_supabase_client
 
@@ -548,6 +548,24 @@ def get_leads_por_vendedor(loja_id: str, dias: int = 30) -> List[Dict[str, Any]]
         contagem[vendedor_nome] = contagem.get(vendedor_nome, 0) + 1
 
     return [{"vendedor_nome": nome, "total": total} for nome, total in contagem.items()]
+
+
+def get_leads_hoje_por_vendedor(loja_id: str) -> Dict[str, int]:
+    """Retorna {vendedor_id: count} de leads recebidos hoje (timezone SP)."""
+    supabase = get_cached_supabase_client()
+    hoje_inicio = datetime.now(_TZ_SP).replace(hour=0, minute=0, second=0, microsecond=0)
+    response = (
+        supabase.table("leads")
+        .select("vendedor_id")
+        .eq("loja_id", loja_id)
+        .gte("recebido_em", hoje_inicio.isoformat())
+        .execute()
+    )
+    contagem: Dict[str, int] = {}
+    for lead in response.data:
+        vid = lead["vendedor_id"]
+        contagem[vid] = contagem.get(vid, 0) + 1
+    return contagem
 
 
 def get_leads_por_hora(
