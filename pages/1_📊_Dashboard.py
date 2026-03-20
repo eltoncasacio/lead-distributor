@@ -75,6 +75,7 @@ st.markdown(
         background-color: {c["surface"]};
         border: 1px solid {c["border"]};
         border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }}
     
     /* Fila horizontal — forcar em todos os niveis */
@@ -159,8 +160,8 @@ def render_kpi_card(icon_key, label, value, subtext="", sub_color=None):
             <div style="width: 24px; height: 24px; background: {c["primary_bg"]}; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px;">
                 {_ICONS[icon_key]}
             </div>
-            <div style="color: {c["text_muted"]}; font-size: 14px;">{label}</div>
-            <div style="color: {c["text"] if label != "Próximo Vendedor na Fila" else c["primary"]}; font-size: 20px; font-weight: 700; line-height: 1;">{value}</div>
+            <div style="color: {c["text_muted"]}; font-size: 13px; font-weight: 500;">{label}</div>
+            <div class="kpi-value" style="color: {c["text"] if label != "Próximo Vendedor na Fila" else c["primary"]}; font-size: 22px; font-weight: 700; line-height: 1; font-family: 'Outfit', sans-serif;">{value}</div>
             <div style="color: {sub_color}; font-size: 12px; font-weight: 500; margin-top: 2px;">{subtext}</div>
         </div>
     """,

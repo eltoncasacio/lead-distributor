@@ -14,7 +14,7 @@ PALETTE = {
     "primary": "#0EA5E9",
     "primary_dark": "#0284C7",
     "primary_light": "#38BDF8",
-    "primary_bg": "#F0F9FF",
+    "primary_bg": "#EFF8FF",
 
     # CTA / Accent (Orange)
     "accent": "#F97316",
@@ -22,14 +22,14 @@ PALETTE = {
     "accent_light": "#FED7AA",
 
     # Backgrounds
-    "background": "#FFFFFF",
-    "surface": "#F8FAFC",
+    "background": "#F8F9FA",
+    "surface": "#FFFFFF",
     "surface_hover": "#F1F5F9",
     "surface_alt": "#F0F9FF",
 
     # Text
-    "text": "#0F172A",
-    "text_secondary": "#475569",
+    "text": "#272B30",
+    "text_secondary": "#5F6B7A",
     "text_muted": "#94A3B8",
     "text_subtle": "#94A3B8",
 
@@ -38,8 +38,8 @@ PALETTE = {
     "border_light": "#F1F5F9",
 
     # Semantic
-    "success": "#22C55E",
-    "warning": "#EAB308",
+    "success": "#10B981",
+    "warning": "#F59E0B",
     "error": "#EF4444",
     "info": "#0EA5E9",
 
@@ -77,7 +77,7 @@ def get_plotly_layout_defaults() -> dict:
         template="plotly_white",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color=c["text"]),
+        font=dict(color=c["text"], family="Outfit, Inter, sans-serif"),
     )
 
 
@@ -88,13 +88,36 @@ def get_plotly_layout_defaults() -> dict:
 
 def inject_theme_css():
     c = get_colors()
+    # Google Fonts: Inter (body) + Outfit (titles/numbers)
+    st.markdown(
+        '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">',
+        unsafe_allow_html=True,
+    )
     st.markdown(
         f"""
     <style>
+    /* === FONTS === */
+    .stApp, .stApp * {{
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    }}
+
+    /* Outfit for titles and numbers */
+    h1, h2, h3, h4, h5, h6,
+    [data-testid="stMetricValue"],
+    .stCard .value,
+    .kpi-value {{
+        font-family: 'Outfit', 'Inter', sans-serif !important;
+    }}
+
     /* === BASE === */
     .stApp {{
         background-color: {c["background"]} !important;
         color: {c["text"]} !important;
+    }}
+
+    /* Main content padding */
+    .stMainBlockContainer {{
+        padding: 2rem 2rem 0.5rem 2rem !important;
     }}
 
     /* Sidebar */
@@ -107,7 +130,7 @@ def inject_theme_css():
         color: {c["text"]} !important;
     }}
 
-    /* Sidebar nav: item ativo = sky blue + barra direita */
+    /* Sidebar nav: item ativo */
     section[data-testid="stSidebar"] a[aria-current="page"] {{
         color: {c["primary"]} !important;
         border-right: 3px solid {c["primary"]} !important;
@@ -117,11 +140,12 @@ def inject_theme_css():
         color: {c["primary"]} !important;
     }}
 
-    /* Containers com borda */
+    /* Containers com borda — cards brancos sobre fundo cinza */
     [data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapper"] {{
         background-color: {c["surface"]} !important;
         border-color: {c["border"]} !important;
         border-radius: 12px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
     }}
 
     /* Metrics */
@@ -159,6 +183,7 @@ def inject_theme_css():
         background-color: {c["primary"]} !important;
         color: #fff !important;
         border: none !important;
+        border-radius: 8px !important;
     }}
     button[data-testid="stBaseButton-primary"]:hover {{
         background-color: {c["primary_dark"]} !important;
@@ -166,7 +191,7 @@ def inject_theme_css():
 
     /* Inputs */
     input, textarea, [data-baseweb="select"] > div {{
-        background-color: {c["background"]} !important;
+        background-color: {c["surface"]} !important;
         color: {c["text"]} !important;
         border-color: {c["border"]} !important;
     }}
@@ -186,10 +211,6 @@ def inject_theme_css():
         color: {c["text_secondary"]} !important;
     }}
 
-    /* Reduce top padding */
-    .stMainBlockContainer {{
-        padding-top: 0.5rem !important;
-    }}
     /* Header transparente */
     .stAppHeader {{
         background: transparent !important;
