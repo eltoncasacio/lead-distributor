@@ -107,7 +107,9 @@ with loading_spinner("Sincronizando dados..."):
     leads_ontem = get_leads_ontem(loja["loja_id"])
 
 # Calcular variação real hoje vs ontem
-_hoje = metricas["total_leads"]
+# IMPORTANTE: metricas["total_leads"] vem de comando_status que retorna 3 dias
+# Para "Leads Hoje", usar leads_hoje_por_vendedor que filtra corretamente apenas hoje
+_hoje = sum(leads_hoje_por_vendedor.values())
 if leads_ontem > 0:
     _variacao = round(((_hoje - leads_ontem) / leads_ontem) * 100)
     _sinal = "+" if _variacao > 0 else ""
