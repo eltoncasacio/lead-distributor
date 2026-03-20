@@ -51,16 +51,13 @@ def show_sidebar_info():
         return
 
     with st.sidebar:
-        # Botao Sair fixo no fundo da sidebar
+        # Marker para CSS :has() identificar o wrapper do logout
         st.markdown(
             """
+            <div id="sidebar-logout"></div>
             <style>
-            /* Empurrar logout para o fundo da sidebar (flex) */
-            section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:last-child {
-                margin-top: auto !important;
-            }
             /* Botao Sair sem borda */
-            section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:last-child button {
+            [data-testid="stSidebarContent"] > :has(#sidebar-logout) button {
                 border: none !important;
                 outline: none !important;
                 box-shadow: none !important;

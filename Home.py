@@ -111,6 +111,12 @@ st.markdown(
         order: -1 !important;
     }
 
+    /* Mover logout para o fundo (order 1 > nav order 0) */
+    [data-testid="stSidebarContent"] > :has(#sidebar-logout) {
+        order: 1 !important;
+        margin-top: auto !important;
+    }
+
     /* Esconder header inteiro quando sidebar recolhida */
     section[data-testid="stSidebar"][aria-expanded="false"] #sidebar-header {
         display: none !important;
