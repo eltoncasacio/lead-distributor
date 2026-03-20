@@ -70,6 +70,25 @@ if not loja:
 
 # --- LOGADO: navegacao ---
 
+# Definir paginas PRIMEIRO (antes de criar os links)
+pg = st.navigation(
+    [
+        st.Page(
+            "pages/1_📊_Dashboard.py", title="Dashboard", icon=":material/dashboard:"
+        ),
+        st.Page("pages/4_Leads.py", title="Leads", icon=":material/leaderboard:"),
+        st.Page(
+            "pages/2_👨‍💼_Gerentes.py",
+            title="Gerentes",
+            icon=":material/supervisor_account:",
+        ),
+        st.Page(
+            "pages/3_👤_Vendedores.py", title="Vendedores", icon=":material/group:"
+        ),
+    ],
+    position="hidden",
+)
+
 # CSS para mini-sidebar (sidebar recolhida mostra so icones)
 st.markdown(
     """
@@ -208,25 +227,6 @@ with st.sidebar:
     st.page_link("pages/4_Leads.py", label="Leads", icon=":material/leaderboard:")
     st.page_link("pages/2_👨‍💼_Gerentes.py", label="Gerentes", icon=":material/supervisor_account:")
     st.page_link("pages/3_👤_Vendedores.py", label="Vendedores", icon=":material/group:")
-
-# Definir paginas (Dashboard = primeira = padrao, nav oculto)
-pg = st.navigation(
-    [
-        st.Page(
-            "pages/1_📊_Dashboard.py", title="Dashboard", icon=":material/dashboard:"
-        ),
-        st.Page("pages/4_Leads.py", title="Leads", icon=":material/leaderboard:"),
-        st.Page(
-            "pages/2_👨‍💼_Gerentes.py",
-            title="Gerentes",
-            icon=":material/supervisor_account:",
-        ),
-        st.Page(
-            "pages/3_👤_Vendedores.py", title="Vendedores", icon=":material/group:"
-        ),
-    ],
-    position="hidden",
-)
 
 # Sidebar: info da conta + botao Sair
 show_sidebar_info()
