@@ -103,6 +103,52 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Header da sidebar: logo + nome da loja
+with st.sidebar:
+    nome_loja = loja["nome"].upper()
+    st.markdown(
+        f"""
+        <div style="padding: 0.75rem 0.5rem 1rem 0.5rem; text-align: center;">
+            <div style="
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 48px;
+                height: 48px;
+                background: #F1F5F9;
+                border-radius: 12px;
+                margin-bottom: 0.5rem;
+            ">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                     stroke="#64748B" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 17h2m10 0h2M2 9l2-6h16l2 6"/>
+                    <path d="M2 9h20v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9z"/>
+                    <circle cx="7" cy="17" r="2"/>
+                    <circle cx="17" cy="17" r="2"/>
+                </svg>
+            </div>
+            <div style="
+                font-family: 'Outfit', sans-serif;
+                font-weight: 700;
+                font-size: 0.95rem;
+                color: #272B30;
+                letter-spacing: 0.02em;
+                line-height: 1.2;
+            ">{nome_loja}</div>
+            <div style="
+                font-family: 'Inter', sans-serif;
+                font-weight: 500;
+                font-size: 0.65rem;
+                color: #94A3B8;
+                letter-spacing: 0.08em;
+                margin-top: 2px;
+            ">LEAD MANAGER</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 # Definir paginas (Dashboard = primeira = padrao)
 pg = st.navigation(
     [
