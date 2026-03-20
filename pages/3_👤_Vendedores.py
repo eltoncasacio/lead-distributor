@@ -263,8 +263,10 @@ if vendedores_visiveis:
             with col_whats:
                 st.markdown(_fmt_whatsapp(vendedor["numero_whatsapp"]))
             with col_status:
-                status_label = "Ativo" if vendedor["status"] == "ativo" else "Inativo"
-                st.markdown(status_label)
+                if vendedor["status"] == "ativo":
+                    st.markdown('<span class="badge badge-success">ATIVO</span>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<span class="badge badge-warning">INATIVO</span>', unsafe_allow_html=True)
 
             with col_edit:
                 if st.button(":material/edit:", key=f"edit_{vendedor['id']}", help="Editar vendedor", use_container_width=True):

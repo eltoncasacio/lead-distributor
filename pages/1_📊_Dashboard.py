@@ -74,8 +74,13 @@ st.markdown(
     .stCard {{
         background-color: {c["surface"]};
         border: 1px solid {c["border"]};
-        border-radius: 12px;
+        border-radius: 16px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }}
+    .stCard:hover {{
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        transform: translateY(-1px);
     }}
     
     /* Fila horizontal — forcar em todos os niveis */
@@ -154,15 +159,16 @@ _ICONS = {
 
 def render_kpi_card(icon_key, label, value, subtext="", sub_color=None):
     sub_color = sub_color or c["text_muted"]
+    val_color = c["text"] if label != "Proximo Vendedor na Fila" else c["primary"]
     st.markdown(
         f"""
-        <div class="stCard" style="padding: 10px 20px; min-height: 135px; display: flex; flex-direction: column; gap: 8px;">
-            <div style="width: 24px; height: 24px; background: {c["primary_bg"]}; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px;">
+        <div class="stCard" style="padding: 20px 24px; min-height: 140px; display: flex; flex-direction: column; gap: 6px;">
+            <div style="width: 32px; height: 32px; background: {c["background"]}; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
                 {_ICONS[icon_key]}
             </div>
-            <div style="color: {c["text_muted"]}; font-size: 13px; font-weight: 500;">{label}</div>
-            <div class="kpi-value" style="color: {c["text"] if label != "Próximo Vendedor na Fila" else c["primary"]}; font-size: 22px; font-weight: 700; line-height: 1; font-family: 'Outfit', sans-serif;">{value}</div>
-            <div style="color: {sub_color}; font-size: 12px; font-weight: 500; margin-top: 2px;">{subtext}</div>
+            <div style="color: {c["text_muted"]}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">{label}</div>
+            <div class="kpi-value" style="color: {val_color}; font-size: 26px; font-weight: 700; line-height: 1; font-family: 'Outfit', sans-serif;">{value}</div>
+            <div style="color: {sub_color}; font-size: 11px; font-weight: 500; margin-top: 2px;">{subtext}</div>
         </div>
     """,
         unsafe_allow_html=True,
@@ -198,7 +204,7 @@ st.markdown("")
 
 
 st.markdown(
-    f'<div style="color:{c["text"]}; font-size:16px; font-weight:600; margin-top:50px;">Fila de Distribuição <span style="color:{c["text_muted"]}; font-size:12px;"> (Arraste para reordenar a fila)</span></div>',
+    f'<div style="color:{c["text"]}; font-size:18px; font-weight:700; margin-top:40px; font-family: Outfit, sans-serif;">Fila de Distribuicao <span style="color:{c["text_muted"]}; font-size:11px; font-weight:500; font-family: Inter, sans-serif; letter-spacing: 0.3px;"> &middot; Arraste para reordenar</span></div>',
     unsafe_allow_html=True,
 )
 
@@ -240,9 +246,10 @@ if vendedores_ativos:
             align-items: center !important;
             background: {c["surface"]} !important;
             position: relative !important;
-            padding: 15px 10px !important;
+            padding: 20px 16px !important;
             min-height: auto !important;
-            border-radius: 12px;
+            border-radius: 16px;
+            border: 1px solid {c["border"]};
         }}
 
         /* Linha do tempo de fundo */
@@ -250,10 +257,10 @@ if vendedores_ativos:
             content: '';
             position: absolute;
             top: 50%;
-            left: 70px;
-            right: 70px;
-            height: 15px;
-            background: linear-gradient(90deg, rgba(14,165,233,0.12), rgba(14,165,233,0.03));
+            left: 80px;
+            right: 80px;
+            height: 2px;
+            background: {c["border"]};
             transform: translateY(-50%);
             z-index: 0;
             pointer-events: none;
@@ -264,8 +271,8 @@ if vendedores_ativos:
             width: 130px !important;
             height: 78px !important;
             background: {c["surface"]} !important;
-            border: 1.5px solid {c["border_light"]} !important;
-            border-radius: 12px !important;
+            border: 1.5px solid {c["border"]} !important;
+            border-radius: 16px !important;
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
@@ -273,16 +280,20 @@ if vendedores_ativos:
             color: {c["text"]} !important;
             font-size: 14px !important;
             font-weight: 600 !important;
+            font-family: 'Outfit', sans-serif !important;
             margin: 24px 20px !important;
             padding: 0 !important;
             position: relative !important;
             cursor: grab !important;
             z-index: 1 !important;
-            transition: border-color 0.2s, box-shadow 0.2s !important;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
         }}
 
         .sortable-item:hover {{
-            border-color: {c["text_subtle"]} !important;
+            border-color: {c["text_muted"]} !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+            transform: translateY(-1px) !important;
         }}
 
         /* Seta -> entre os cards */
@@ -292,34 +303,35 @@ if vendedores_ativos:
             right: -20px;
             top: 50%;
             transform: translateX(50%) translateY(-50%);
-            color: {c["text_subtle"]};
-            font-size: 18px;
-            font-weight: 600;
+            color: {c["text_muted"]};
+            font-size: 16px;
+            font-weight: 400;
             pointer-events: none;
             z-index: 2;
         }}
 
         /* Card do proximo vendedor */
         .sortable-item:first-child {{
-            border-color: {c["primary"]} !important;
-            box-shadow: 0 0 16px rgba(14,165,233,0.15) !important;
+            border-color: {c["text"]} !important;
+            box-shadow: 0 2px 10px rgba(39,43,48,0.12) !important;
             padding-bottom: 14px !important;
         }}
 
-        /* Badge PROXIMO */
+        /* Badge PROXIMO — tint style */
         .sortable-item:first-child::before {{
             content: 'PROXIMO';
             position: absolute;
             bottom: 7px;
-            background: {c["primary"]};
+            background: {c["text"]};
             color: #fff;
             font-size: 8px;
             font-weight: 800;
             padding: 2px 10px;
-            border-radius: 3px;
-            letter-spacing: 0.6px;
+            border-radius: 6px;
+            letter-spacing: 0.8px;
             white-space: nowrap;
             text-transform: uppercase;
+            font-family: 'Inter', sans-serif;
         }}
 
         /* Esconder texto de acessibilidade do dnd-kit */
@@ -350,22 +362,22 @@ else:
     st.info("Nenhum vendedor disponível.")
 
 st.markdown(
-    '<div style="font-size:16px; font-weight:600; margin-top:20px; margin-bottom:5px;">Atividades Recentes</div>',
+    f'<div style="color:{c["text"]}; font-size:18px; font-weight:700; margin-top:20px; margin-bottom:8px; font-family: Outfit, sans-serif;">Atividades Recentes</div>',
     unsafe_allow_html=True,
 )
 with st.container(border=False, height=280):
     ativs = get_atividades_recentes(loja["loja_id"], limite=8)
     if ativs:
-        timeline_html = f'<div style="background: {c["surface"]}; border: 1px solid {c["border"]}; border-radius: 8px; padding: 15px;">'
+        timeline_html = f'<div style="background: {c["surface"]}; border: 1px solid {c["border"]}; border-radius: 16px; padding: 20px;">'
         for i, a in enumerate(ativs):
-            icon = "➢"
+            dot_color = c["success"] if "recebeu" in a["descricao"].lower() else c["primary"]
             line = (
-                f'<div style="position: absolute; left: 10px; top: 25px; bottom: 0; width: 1.5px; background: {c["border"]};"></div>'
+                f'<div style="position: absolute; left: 5px; top: 22px; bottom: 0; width: 1.5px; background: {c["border"]};"></div>'
                 if i < len(ativs) - 1
                 else ""
             )
             data_fmt = _formatar_data_atividade(a["criado_em"])
-            timeline_html += f'<div style="display: flex; gap: 12px; position: relative; padding-bottom: 15px;">{line}<div style="z-index: 1; color: {c["primary"]}; font-size:12px;">{icon}</div><div><div style="font-size: 12px; color: {c["text"]}; font-weight: 500;">{a["descricao"]}</div><div style="font-size: 10px; color: {c["text_muted"]};">{data_fmt}</div></div></div>'
+            timeline_html += f'<div style="display: flex; gap: 14px; position: relative; padding-bottom: 14px;">{line}<div style="z-index:1; width:10px; height:10px; border-radius:50%; background:{dot_color}; margin-top:4px; flex-shrink:0;"></div><div><div style="font-size: 13px; color: {c["text"]}; font-weight: 500; line-height:1.4;">{a["descricao"]}</div><div style="font-size: 11px; color: {c["text_muted"]}; margin-top:2px;">{data_fmt}</div></div></div>'
         timeline_html += "</div>"
         st.markdown(timeline_html, unsafe_allow_html=True)
 
@@ -374,7 +386,10 @@ st.markdown("---")
 # ============================================
 # 5. SEÇÃO DE ANALYTICS (GRID COMPLETO)
 # ============================================
-st.markdown("### Inteligência de Dados")
+st.markdown(
+    f'<div style="color:{c["text"]}; font-size:18px; font-weight:700; font-family: Outfit, sans-serif; margin-bottom: 4px;">Inteligencia de Dados</div>',
+    unsafe_allow_html=True,
+)
 
 
 def _set_filtro_hoje():
@@ -403,7 +418,7 @@ with col_trend:
             df_dia = pd.DataFrame(leads_dia).sort_values("data")
             df_dia["data_fmt"] = pd.to_datetime(df_dia["data"]).dt.strftime("%d/%m")
             st.markdown(
-                f'<div style="font-weight:600;margin-bottom:10px;">Fluxo de Leads (Total: {int(df_dia["total"].sum())})</div>',
+                f'<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c['text']}">Fluxo de Leads (Total: {int(df_dia["total"].sum())})</div>',
                 unsafe_allow_html=True,
             )
             if len(df_dia) == 1:
@@ -426,7 +441,7 @@ with col_trend:
             st.plotly_chart(fig_t, use_container_width=True)
         else:
             st.markdown(
-                '<div style="font-weight:600;margin-bottom:10px;">Fluxo de Leads</div>',
+                '<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c['text']}">Fluxo de Leads</div>',
                 unsafe_allow_html=True,
             )
             st.caption("Nenhum lead no periodo selecionado.")
@@ -434,7 +449,7 @@ with col_trend:
 with col_funnel:
     with st.container(border=True):
         st.markdown(
-            '<div style="font-weight:600;margin-bottom:10px;">Funil de Vendas</div>',
+            '<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c['text']}">Funil de Vendas</div>',
             unsafe_allow_html=True,
         )
         f_data = get_metricas_funil(
@@ -457,7 +472,7 @@ col_orig, col_hora = st.columns(2, gap="small")
 with col_orig:
     with st.container(border=True):
         st.markdown(
-            '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">Leads por Origem</div>',
+            '<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c['text']}">Leads por Origem</div>',
             unsafe_allow_html=True,
         )
         origens = get_leads_por_origem_comparativo(
@@ -479,7 +494,7 @@ with col_orig:
 with col_hora:
     with st.container(border=True):
         st.markdown(
-            '<div style="font-size:14px;font-weight:600;margin-bottom:10px;">Leads por Hora</div>',
+            '<div style="font-weight:700; font-family: Outfit, sans-serif; font-size:15px; margin-bottom:10px; color:{c['text']}">Leads por Hora</div>',
             unsafe_allow_html=True,
         )
         horas = get_leads_por_hora(
@@ -496,4 +511,4 @@ with col_hora:
         else:
             st.caption("Nenhum lead no periodo selecionado.")
 
-st.caption("Lead Automation System | v2.3 Final")
+st.caption("ZapLead | Centro de Comando")
