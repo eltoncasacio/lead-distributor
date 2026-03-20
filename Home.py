@@ -106,7 +106,7 @@ st.markdown(
         height: 100% !important;
     }
 
-    /* Mover header acima do nav (order -1 < nav order 0) */
+    /* Mover header acima do nav (order 10 < nav order 0) */
     [data-testid="stSidebarContent"] > :has(#sidebar-header) {
         order: -1 !important;
     }

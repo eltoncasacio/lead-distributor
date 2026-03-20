@@ -12,6 +12,7 @@ import zoneinfo
 from utils.ui import loading_spinner, inject_global_css
 from utils.auth import obter_loja_logada
 from utils.theme import get_colors, get_plotly_layout_defaults
+from streamlit_sortables import sort_items
 from utils.queries import (
     get_metricas_hoje,
     get_leads_ontem,
@@ -20,6 +21,7 @@ from utils.queries import (
     get_leads_por_origem_comparativo,
     listar_vendedores,
     obter_proximo_vendedor,
+    reordenar_vendedores,
     get_atividades_recentes,
     get_metricas_funil,
     get_leads_hoje_por_vendedor,
@@ -135,11 +137,10 @@ def render_kpi_card(icon_key, label, value, subtext="", sub_color=None):
         f"""
         <div class="stCard" style="padding: 20px 24px; min-height: 140px; display: flex; flex-direction: column; gap: 6px;">
             <div style="width: 32px; height: 32px; background: {c["background"]}; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
-                {_ICONS[icon_key]}
+                {_ICONS[icon_key]} <span style="color: {sub_color}; font-size: 11px; font-weight: 500;">{subtext}</span>
             </div>
             <div style="color: {c["text_muted"]}; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">{label}</div>
             <div class="kpi-value" style="color: {val_color}; font-size: 26px; font-weight: 700; line-height: 1; font-family: 'Outfit', sans-serif;">{value}</div>
-            <div style="color: {sub_color}; font-size: 11px; font-weight: 500; margin-top: 2px;">{subtext}</div>
         </div>
     """,
         unsafe_allow_html=True,
@@ -175,7 +176,11 @@ st.markdown("")
 
 
 st.markdown(
-    f'<div style="color:{c["text"]}; font-size:18px; font-weight:700; margin-top:40px; font-family: Outfit, sans-serif;">Fila de Distribuicao</div>',
+    f'<div style="color:{c["text"]}; font-size:18px; font-weight:700; margin-top:40px; font-family: Outfit, sans-serif;">Fila de Distribuição</div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    f'<div style="color:{c["text_muted"]}; font-size:12px; margin-bottom:5px;">Arraste para reordenar a fila</div>',
     unsafe_allow_html=True,
 )
 
@@ -185,27 +190,144 @@ if vendedores_ativos:
         idx = next((i for i, v in enumerate(v_sorted) if v["id"] == proximo["id"]), 0)
         v_sorted = v_sorted[idx:] + v_sorted[:idx]
 
-    _queue_html = f'<div style="position: relative; padding: 20px 0 12px 0;">'
-    # Gradient connecting line
-    _queue_html += f'<div style="position: absolute; top: 50%; left: 40px; right: 40px; height: 4px; border-radius: 2px; background: linear-gradient(to right, transparent, {c["border"]} 10%, {c["border"]} 90%, transparent); transform: translateY(-50%); z-index: 0;"></div>'
-    _queue_html += '<div style="display: flex; align-items: center; gap: 14px; overflow-x: auto; position: relative; z-index: 1; scrollbar-width: none; -webkit-overflow-scrolling: touch;">'
-    for i, v in enumerate(v_sorted):
-        _is_next = proximo and v["id"] == proximo["id"]
-        _initial = v["nome"][0].upper()
-        _leads_n = leads_hoje_por_vendedor.get(v["id"], 0)
-        _border = f'2px solid {c["text"]}' if _is_next else f'1.5px solid {c["border"]}'
-        _shadow = '0 2px 12px rgba(39,43,48,0.10)' if _is_next else '0 1px 4px rgba(0,0,0,0.04)'
-        _badge = f'<span style="background:#ECFDF5; color:#065F46; font-size:9px; font-weight:800; padding:2px 8px; border-radius:6px; letter-spacing:0.5px; margin-left:8px; font-family:Inter,sans-serif; text-transform:uppercase; white-space:nowrap;">PROXIMO</span>' if _is_next else ''
-        _queue_html += f'<div style="flex:0 0 auto; background:{c["surface"]}; border:{_border}; border-radius:16px; padding:14px 18px; min-width:200px; box-shadow:{_shadow}; display:flex; align-items:center; gap:12px; transition:box-shadow 0.2s ease,transform 0.2s ease;"><div style="width:40px; height:40px; background:{c["text"]}; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span style="color:#fff; font-size:16px; font-weight:700; font-family:Outfit,sans-serif;">{_initial}</span></div><div style="flex:1; min-width:0;"><div style="display:flex; align-items:center;"><span style="font-size:14px; font-weight:700; color:{c["text"]}; font-family:Outfit,sans-serif;">{v["nome"]}</span>{_badge}</div><div style="font-size:12px; color:{c["text_muted"]}; margin-top:3px; font-family:Inter,sans-serif;">Leads hoje: <b style="color:{c["text"]};">{_leads_n}</b></div></div><div style="display:flex; align-items:center; gap:5px; flex-shrink:0;"><span style="width:7px; height:7px; border-radius:50%; background:{c["success"]}; display:inline-block;"></span><span style="font-size:11px; color:{c["text_muted"]}; font-family:Inter,sans-serif;">Ativo</span></div></div>'
-        if i < len(v_sorted) - 1:
-            _queue_html += f'<div style="color:{c["text_muted"]}; font-size:18px; flex-shrink:0;">&#8594;</div>'
-    _queue_html += '</div></div>'
-    st.markdown(_queue_html, unsafe_allow_html=True)
+    nomes = [v["nome"] for v in v_sorted]
+
+    _fila_css = f"""
+        /* Forcar layout horizontal em todos os niveis */
+        .sortable-component,
+        .sortable-component > div,
+        .sortable-component.vertical {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+        }}
+
+        .sortable-container {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            padding: 20px 10px !important;
+            gap: 0px !important;
+            position: relative !important;
+            align-items: center !important;
+            width: 100% !important;
+        }}
+        .sortable-container::-webkit-scrollbar {{ display: none; }}
+
+        .sortable-container-body {{
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            background: transparent !important;
+            position: relative !important;
+            padding: 15px 5px !important;
+            min-height: auto !important;
+        }}
+
+        /* Linha do tempo de fundo */
+        .sortable-container-body::before {{
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 70px;
+            right: 70px;
+            height: 2px;
+            background: linear-gradient(90deg, rgba(245,158,11,0.18), rgba(55,65,81,0.08));
+            transform: translateY(-50%);
+            z-index: 0;
+            pointer-events: none;
+        }}
+
+        .sortable-item {{
+            flex: 0 0 auto !important;
+            width: 130px !important;
+            height: 78px !important;
+            background: {c["surface"]} !important;
+            border: 1.5px solid {c["border"]} !important;
+            border-radius: 12px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            color: {c["text"]} !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            margin: 0 24px 0 0 !important;
+            padding: 0 !important;
+            position: relative !important;
+            cursor: grab !important;
+            z-index: 1 !important;
+            transition: border-color 0.2s, box-shadow 0.2s !important;
+        }}
+
+        .sortable-item:hover {{
+            border-color: {c["text"]} !important;
+        }}
+
+        /* Seta -> entre os cards */
+        .sortable-item:not(:last-child)::after {{
+            content: '→';
+            position: absolute;
+            right: -20px;
+            top: 50%;
+            transform: translateX(50%) translateY(-50%);
+            color: {c["text_muted"]};
+            font-size: 18px;
+            font-weight: 400;
+            pointer-events: none;
+            z-index: 2;
+        }}
+
+        /* Card do proximo vendedor */
+        .sortable-item:first-child {{
+            border-color: {c["primary"]} !important;
+            box-shadow: 0 0 16px rgba(16,185,129,0.15) !important;
+            padding-bottom: 14px !important;
+        }}
+
+        /* Badge PROXIMO */
+        .sortable-item:first-child::before {{
+            content: 'PROXIMO';
+            position: absolute;
+            bottom: 7px;
+            background: {c["primary"]};
+            color: white;
+            font-size: 8px;
+            font-weight: 800;
+            padding: 2px 10px;
+            border-radius: 3px;
+            letter-spacing: 0.6px;
+            white-space: nowrap;
+            text-transform: uppercase;
+        }}
+
+        /* Esconder texto de acessibilidade do dnd-kit */
+        div[id^="DndDescribedBy"],
+        div[id^="DndLiveRegion"] {{
+            display: none !important;
+            visibility: hidden !important;
+        }}
+    """
+
+    nova_ordem = sort_items(
+        nomes,
+        direction="horizontal",
+        custom_style=_fila_css,
+        key="fila_distribuicao",
+    )
+
+    novos_ids = [next(v["id"] for v in v_sorted if v["nome"] == n) for n in nova_ordem]
+    if novos_ids != [v["id"] for v in v_sorted]:
+        reordenar_vendedores(loja["loja_id"], novos_ids)
+        st.rerun()
 else:
     st.info("Nenhum vendedor disponivel.")
 
 st.markdown(
-    f'<div style="color:{c["text"]}; font-size:18px; font-weight:700; margin-top:20px; margin-bottom:8px; font-family: Outfit, sans-serif;">Atividades Recentes</div>',
+    f'<div style="color:{c["text"]}; font-size:18px; font-weight:700; margin-top:50px; margin-bottom:8px; font-family: Outfit, sans-serif;">Atividades Recentes</div>',
     unsafe_allow_html=True,
 )
 with st.container(border=False, height=280):
