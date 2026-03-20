@@ -75,8 +75,8 @@ def get_plotly_layout_defaults() -> dict:
     c = get_colors()
     return dict(
         template="plotly_white",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor=c["surface"],
+        plot_bgcolor=c["surface"],
         font=dict(color=c["text"], family="Outfit, Inter, sans-serif"),
     )
 
