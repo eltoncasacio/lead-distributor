@@ -84,6 +84,14 @@ st.markdown(
         transform: translateY(-1px);
     }}
 
+    /* Containers dos gráficos com mesma cor dos KPIs */
+    [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] > [data-testid="element-container"] > div > div[data-testid="stVerticalBlock"] {{
+        background-color: {c["surface"]} !important;
+        border: 1px solid {c["border"]} !important;
+        border-radius: 16px !important;
+        padding: 20px !important;
+    }}
+
     /* Esconder status/acessibilidade do Streamlit */
     div[role="status"] {{
         display: none !important;
@@ -329,7 +337,7 @@ else:
     st.info("Nenhum vendedor disponivel.")
 
 st.markdown(
-    f'<div style="color:{c["text"]}; font-size:18px; font-weight:700; margin-top:50px; margin-bottom:8px; font-family: Outfit, sans-serif;">Atividades Recentes</div>',
+    f'<div style="color:{c["text"]}; font-size:18px; font-weight:700; margin-top:10px; margin-bottom:8px; font-family: Outfit, sans-serif;">Atividades Recentes</div>',
     unsafe_allow_html=True,
 )
 with st.container(border=False, height=280):
