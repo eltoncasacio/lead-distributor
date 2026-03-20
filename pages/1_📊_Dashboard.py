@@ -110,11 +110,6 @@ with loading_spinner("Sincronizando dados..."):
 # IMPORTANTE: metricas["total_leads"] vem de comando_status que retorna 3 dias
 # Para "Leads Hoje", usar leads_hoje_por_vendedor que filtra corretamente apenas hoje
 _hoje = sum(leads_hoje_por_vendedor.values())
-
-# DEBUG: Verificar o que está sendo calculado
-st.sidebar.write(f"DEBUG - leads_hoje_por_vendedor: {leads_hoje_por_vendedor}")
-st.sidebar.write(f"DEBUG - _hoje (soma): {_hoje}")
-st.sidebar.write(f"DEBUG - metricas['total_leads']: {metricas['total_leads']}")
 if leads_ontem > 0:
     _variacao = round(((_hoje - leads_ontem) / leads_ontem) * 100)
     _sinal = "+" if _variacao > 0 else ""
@@ -157,7 +152,7 @@ def render_kpi_card(icon_key, label, value, subtext="", sub_color=None):
 k_cols = st.columns(4)
 with k_cols[0]:
     render_kpi_card(
-        "leads", "Leads Hoje", metricas["total_leads"], _sub_leads, _sub_cor
+        "leads", "Leads Hoje", _hoje, _sub_leads, _sub_cor
     )
 with k_cols[1]:
     if ultimo_lead_info:
