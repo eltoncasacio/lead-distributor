@@ -101,7 +101,7 @@ def inject_theme_css():
        ============================================= */
 
     /* === FONTS === */
-    .stApp, .stApp * {{
+    .stApp {{
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
     }}
 

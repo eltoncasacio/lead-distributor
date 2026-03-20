@@ -55,12 +55,9 @@ def show_sidebar_info():
         st.markdown(
             """
             <style>
-            /* Empurrar conteudo pos-nav para o fundo da sidebar */
+            /* Empurrar logout para o fundo da sidebar (flex) */
             section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:last-child {
-                position: absolute;
-                bottom: 0px;
-                left: 16px;
-                right: 16px;
+                margin-top: auto !important;
             }
             /* Botao Sair sem borda */
             section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:last-child button {

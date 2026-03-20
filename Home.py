@@ -98,6 +98,23 @@ st.markdown(
     section[data-testid="stSidebar"][aria-expanded="false"] ~ section[data-testid="stMain"] {
         margin-left: 4.5rem;
     }
+
+    /* === Sidebar flex layout: header acima do nav, logout no fundo === */
+    [data-testid="stSidebarContent"] {
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100% !important;
+    }
+
+    /* Mover header acima do nav (order -1 < nav order 0) */
+    [data-testid="stSidebarContent"] > :has(#sidebar-header) {
+        order: -1 !important;
+    }
+
+    /* Esconder header inteiro quando sidebar recolhida */
+    section[data-testid="stSidebar"][aria-expanded="false"] #sidebar-header {
+        display: none !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -108,7 +125,7 @@ with st.sidebar:
     nome_loja = loja["nome"].upper()
     st.markdown(
         f"""
-        <div style="padding: 0.75rem 0.5rem 1rem 0.5rem; text-align: center;">
+        <div id="sidebar-header" style="padding: 0.75rem 0.5rem 1rem 0.5rem; text-align: center;">
             <div style="
                 display: inline-flex;
                 align-items: center;
