@@ -1,55 +1,57 @@
 """
-Sistema de temas (dark/light) com paleta amber.
+Sistema de tema ZapLead — paleta Sky Blue + Orange CTA (light mode).
 Single source of truth para todas as cores do app.
 """
 
 import streamlit as st
 
 # ============================================
-# PALETAS
+# PALETA ZAPLEAD
 # ============================================
 
-DARK_PALETTE = {
-    "primary": "#f59e0b",
-    "primary_dark": "#d97706",
-    "primary_light": "#fbbf24",
-    "background": "#0b0f19",
-    "surface": "#111827",
-    "surface_hover": "#1a2332",
-    "border": "#1f2937",
-    "border_light": "#374151",
-    "text": "#e5e7eb",
-    "text_muted": "#9ca3af",
-    "text_subtle": "#6b7280",
-    "success": "#10b981",
-    "warning": "#f59e0b",
-    "error": "#ef4444",
-    "info": "#3b82f6",
-    "scrollbar_track": "#1f2937",
-    "scrollbar_thumb": "#475569",
-    "scrollbar_thumb_hover": "#64748b",
+PALETTE = {
+    # Primary (Sky Blue)
+    "primary": "#0EA5E9",
+    "primary_dark": "#0284C7",
+    "primary_light": "#38BDF8",
+    "primary_bg": "#F0F9FF",
+
+    # CTA / Accent (Orange)
+    "accent": "#F97316",
+    "accent_dark": "#EA580C",
+    "accent_light": "#FED7AA",
+
+    # Backgrounds
+    "background": "#FFFFFF",
+    "surface": "#F8FAFC",
+    "surface_hover": "#F1F5F9",
+    "surface_alt": "#F0F9FF",
+
+    # Text
+    "text": "#0F172A",
+    "text_secondary": "#475569",
+    "text_muted": "#94A3B8",
+    "text_subtle": "#94A3B8",
+
+    # Borders
+    "border": "#E2E8F0",
+    "border_light": "#F1F5F9",
+
+    # Semantic
+    "success": "#22C55E",
+    "warning": "#EAB308",
+    "error": "#EF4444",
+    "info": "#0EA5E9",
+
+    # Scrollbar
+    "scrollbar_track": "#E2E8F0",
+    "scrollbar_thumb": "#94A3B8",
+    "scrollbar_thumb_hover": "#64748B",
 }
 
-LIGHT_PALETTE = {
-    "primary": "#f59e0b",
-    "primary_dark": "#d97706",
-    "primary_light": "#fbbf24",
-    "background": "#f8fafc",
-    "surface": "#ffffff",
-    "surface_hover": "#f1f5f9",
-    "border": "#e2e8f0",
-    "border_light": "#cbd5e1",
-    "text": "#1e293b",
-    "text_muted": "#64748b",
-    "text_subtle": "#94a3b8",
-    "success": "#10b981",
-    "warning": "#f59e0b",
-    "error": "#ef4444",
-    "info": "#3b82f6",
-    "scrollbar_track": "#e2e8f0",
-    "scrollbar_thumb": "#94a3b8",
-    "scrollbar_thumb_hover": "#64748b",
-}
+# Aliases for backward compatibility
+LIGHT_PALETTE = PALETTE
+DARK_PALETTE = PALETTE
 
 
 # ============================================
@@ -58,21 +60,21 @@ LIGHT_PALETTE = {
 
 
 def get_theme() -> str:
-    return st.session_state.get("theme", "dark")
+    return "light"
 
 
 def set_theme(theme: str):
-    st.session_state["theme"] = theme
+    st.session_state["theme"] = "light"
 
 
 def get_colors() -> dict:
-    return DARK_PALETTE if get_theme() == "dark" else LIGHT_PALETTE
+    return PALETTE
 
 
 def get_plotly_layout_defaults() -> dict:
     c = get_colors()
     return dict(
-        template="plotly_dark" if get_theme() == "dark" else "plotly_white",
+        template="plotly_white",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=c["text"]),
@@ -105,7 +107,7 @@ def inject_theme_css():
         color: {c["text"]} !important;
     }}
 
-    /* Sidebar nav: item ativo = amber + barra direita */
+    /* Sidebar nav: item ativo = sky blue + barra direita */
     section[data-testid="stSidebar"] a[aria-current="page"] {{
         color: {c["primary"]} !important;
         border-right: 3px solid {c["primary"]} !important;
@@ -132,13 +134,13 @@ def inject_theme_css():
         font-size: 0.8rem;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        color: {c["text_muted"]} !important;
+        color: {c["text_secondary"]} !important;
     }}
 
     /* Tabs */
     button[data-baseweb="tab"] {{
         font-size: 0.85rem !important;
-        color: {c["text_muted"]} !important;
+        color: {c["text_secondary"]} !important;
     }}
     button[data-baseweb="tab"][aria-selected="true"] {{
         color: {c["primary"]} !important;
@@ -155,7 +157,7 @@ def inject_theme_css():
     /* Buttons primary */
     button[data-testid="stBaseButton-primary"] {{
         background-color: {c["primary"]} !important;
-        color: #000 !important;
+        color: #fff !important;
         border: none !important;
     }}
     button[data-testid="stBaseButton-primary"]:hover {{
@@ -164,7 +166,7 @@ def inject_theme_css():
 
     /* Inputs */
     input, textarea, [data-baseweb="select"] > div {{
-        background-color: {c["surface"]} !important;
+        background-color: {c["background"]} !important;
         color: {c["text"]} !important;
         border-color: {c["border"]} !important;
     }}
@@ -181,14 +183,14 @@ def inject_theme_css():
 
     /* Caption */
     .stCaption, [data-testid="stCaption"] {{
-        color: {c["text_muted"]} !important;
+        color: {c["text_secondary"]} !important;
     }}
 
-    /* Reduce top padding — alinhar conteudo com menu lateral */
+    /* Reduce top padding */
     .stMainBlockContainer {{
         padding-top: 0.5rem !important;
     }}
-    /* Header transparente mas funcional (mantem botao de sidebar) */
+    /* Header transparente */
     .stAppHeader {{
         background: transparent !important;
         backdrop-filter: none !important;
@@ -200,14 +202,9 @@ def inject_theme_css():
 
 
 # ============================================
-# THEME TOGGLE
+# THEME TOGGLE (no-op, light-only)
 # ============================================
 
 
 def render_theme_toggle():
-    current = get_theme()
-    icon = ":material/light_mode:" if current == "dark" else ":material/dark_mode:"
-    label = "Modo Claro" if current == "dark" else "Modo Escuro"
-    if st.button(icon, use_container_width=True, help=label, key="theme_toggle"):
-        set_theme("light" if current == "dark" else "dark")
-        st.rerun()
+    pass
