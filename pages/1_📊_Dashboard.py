@@ -81,6 +81,14 @@ st.markdown(
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         transform: translateY(-1px);
     }}
+
+    /* Esconder status/acessibilidade do Streamlit */
+    div[role="status"] {{
+        display: none !important;
+    }}
+    [aria-live="assertive"] {{
+        display: none !important;
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -188,22 +196,7 @@ if vendedores_ativos:
         _border = f'2px solid {c["text"]}' if _is_next else f'1.5px solid {c["border"]}'
         _shadow = '0 2px 12px rgba(39,43,48,0.10)' if _is_next else '0 1px 4px rgba(0,0,0,0.04)'
         _badge = f'<span style="background:#ECFDF5; color:#065F46; font-size:9px; font-weight:800; padding:2px 8px; border-radius:6px; letter-spacing:0.5px; margin-left:8px; font-family:Inter,sans-serif; text-transform:uppercase; white-space:nowrap;">PROXIMO</span>' if _is_next else ''
-        _queue_html += f'''<div style="flex:0 0 auto; background:{c["surface"]}; border:{_border}; border-radius:16px; padding:14px 18px; min-width:200px; box-shadow:{_shadow}; display:flex; align-items:center; gap:12px; transition: box-shadow 0.2s ease, transform 0.2s ease;">
-            <div style="width:40px; height:40px; background:{c["text"]}; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                <span style="color:#fff; font-size:16px; font-weight:700; font-family:Outfit,sans-serif;">{_initial}</span>
-            </div>
-            <div style="flex:1; min-width:0;">
-                <div style="display:flex; align-items:center;">
-                    <span style="font-size:14px; font-weight:700; color:{c["text"]}; font-family:Outfit,sans-serif;">{v["nome"]}</span>
-                    {_badge}
-                </div>
-                <div style="font-size:12px; color:{c["text_muted"]}; margin-top:3px; font-family:Inter,sans-serif;">Leads hoje: <b style="color:{c["text"]};">{_leads_n}</b></div>
-            </div>
-            <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
-                <span style="width:7px; height:7px; border-radius:50%; background:{c["success"]}; display:inline-block;"></span>
-                <span style="font-size:11px; color:{c["text_muted"]}; font-family:Inter,sans-serif;">Ativo</span>
-            </div>
-        </div>'''
+        _queue_html += f'<div style="flex:0 0 auto; background:{c["surface"]}; border:{_border}; border-radius:16px; padding:14px 18px; min-width:200px; box-shadow:{_shadow}; display:flex; align-items:center; gap:12px; transition:box-shadow 0.2s ease,transform 0.2s ease;"><div style="width:40px; height:40px; background:{c["text"]}; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span style="color:#fff; font-size:16px; font-weight:700; font-family:Outfit,sans-serif;">{_initial}</span></div><div style="flex:1; min-width:0;"><div style="display:flex; align-items:center;"><span style="font-size:14px; font-weight:700; color:{c["text"]}; font-family:Outfit,sans-serif;">{v["nome"]}</span>{_badge}</div><div style="font-size:12px; color:{c["text_muted"]}; margin-top:3px; font-family:Inter,sans-serif;">Leads hoje: <b style="color:{c["text"]};">{_leads_n}</b></div></div><div style="display:flex; align-items:center; gap:5px; flex-shrink:0;"><span style="width:7px; height:7px; border-radius:50%; background:{c["success"]}; display:inline-block;"></span><span style="font-size:11px; color:{c["text_muted"]}; font-family:Inter,sans-serif;">Ativo</span></div></div>'
         if i < len(v_sorted) - 1:
             _queue_html += f'<div style="color:{c["text_muted"]}; font-size:18px; flex-shrink:0;">&#8594;</div>'
     _queue_html += '</div></div>'
