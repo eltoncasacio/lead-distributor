@@ -405,7 +405,7 @@ def _render_lista_mensagens(mensagens: list, key_prefix: str, loja_id: str):
 
     for msg in mensagens:
         with st.container(border=True):
-            col_info, col_acoes = st.columns([5, 1])
+            col_info, col_acoes = st.columns([6, 1])
             with col_info:
                 st.markdown(f"**{msg['titulo']}**")
                 st.text(msg["texto"])
