@@ -244,8 +244,8 @@ if vendedores_ativos:
             top: 50%;
             left: 70px;
             right: 70px;
-            height: 2px;
-            background: linear-gradient(90deg, rgba(245,158,11,0.18), rgba(55,65,81,0.08));
+            height: 15px;
+            background: linear-gradient(90deg, {c["primary"]}, rgba(55,65,81,0.08));
             transform: translateY(-50%);
             z-index: 0;
             pointer-events: none;
@@ -281,10 +281,10 @@ if vendedores_ativos:
         .sortable-item:not(:last-child)::after {{
             content: '→';
             position: absolute;
-            right: -20px;
+            right: -15px;
             top: 50%;
             transform: translateX(50%) translateY(-50%);
-            color: {c["text_muted"]};
+            color: #FFF;
             font-size: 18px;
             font-weight: 400;
             pointer-events: none;
@@ -336,8 +336,10 @@ if vendedores_ativos:
 else:
     st.info("Nenhum vendedor disponivel.")
 
+st.markdown("---")
+
 st.markdown(
-    f'<div style="color:{c["text"]}; font-size:18px; font-weight:700; margin-top:10px; margin-bottom:8px; font-family: Outfit, sans-serif;">Atividades Recentes</div>',
+    f'<div style="color:{c["text"]}; font-size:18px; font-weight:700; margin-bottom:8px; font-family: Outfit, sans-serif;">Atividades Recentes</div>',
     unsafe_allow_html=True,
 )
 with st.container(border=False, height=280):

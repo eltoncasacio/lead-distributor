@@ -74,4 +74,4 @@ Interface de gerenciamento para lojas:
 ✅ Interface web completa
 ✅ Log de atividades em tempo real
 
-❌ Fora da V1: Dashboard analytics avançado, IA/ML, integrações API diretas (OLX/Webmotors), SLA tracking, app mobile
+❌ Fora do sistema: Dashboard analytics avançado, IA/ML, integrações API diretas (OLX/Webmotors), SLA tracking, app mobile
