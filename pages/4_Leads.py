@@ -148,9 +148,9 @@ tab_todos, tab_negociando, tab_sem_resposta, tab_sem_interesse, tab_vendido = st
 )
 
 
-def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True):
+def render_leads_table_filtrada(leads, tab_key="todos"):
     """
-    Renderiza tabela de leads com opcao de ocultar coluna Status.
+    Renderiza tabela de leads com coluna Status editavel.
     """
     if not leads:
         info_message("Nenhum lead encontrado")
@@ -160,214 +160,158 @@ def render_leads_table_filtrada(leads, mostrar_coluna_status=True, editavel=True
     df["recebido_em"] = pd.to_datetime(df["recebido_em"], format="ISO8601", utc=True)
     df["Data/Hora"] = df["recebido_em"].dt.tz_convert("America/Sao_Paulo").dt.strftime("%d/%m/%Y %H:%M")
 
-    # Colunas base (Status primeiro quando presente)
-    if mostrar_coluna_status:
-        colunas = [
-            "status_lead",
-            "Data/Hora",
-            "nome_cliente",
-            "numero_cliente",
-            "anuncio",
-            "origem",
-            "vendedor_nome",
-        ]
-    else:
-        colunas = [
-            "Data/Hora",
-            "nome_cliente",
-            "numero_cliente",
-            "anuncio",
-            "origem",
-            "vendedor_nome",
-        ]
+    colunas = [
+        "status_lead",
+        "Data/Hora",
+        "nome_cliente",
+        "numero_cliente",
+        "anuncio",
+        "origem",
+        "vendedor_nome",
+    ]
 
     df_exibir = df[colunas].copy()
 
-    # Renomear colunas
-    if mostrar_coluna_status:
-        nomes_colunas = [
-            "Status",
-            "Data/Hora",
-            "Cliente",
-            "Telefone",
-            "Anuncio",
-            "Origem",
-            "Vendedor",
-        ]
-    else:
-        nomes_colunas = [
-            "Data/Hora",
-            "Cliente",
-            "Telefone",
-            "Anuncio",
-            "Origem",
-            "Vendedor",
-        ]
+    nomes_colunas = [
+        "Status",
+        "Data/Hora",
+        "Cliente",
+        "Telefone",
+        "Anuncio",
+        "Origem",
+        "Vendedor",
+    ]
 
     df_exibir.columns = nomes_colunas
 
-    if editavel and mostrar_coluna_status:
-        # === INICIALIZAR SESSION STATE PARA AUTO-SAVE ===
-        # Key única por contexto de filtro para suportar múltiplas instâncias
-        session_key = f"leads_ultimo_hash_{hash(str(leads))}"
+    # === INICIALIZAR SESSION STATE PARA AUTO-SAVE ===
+    session_key = f"leads_ultimo_hash_{tab_key}_{hash(str(leads))}"
 
-        if session_key not in st.session_state:
-            st.session_state[session_key] = None
+    if session_key not in st.session_state:
+        st.session_state[session_key] = None
 
-        if "leads_salvamento_em_progresso" not in st.session_state:
+    if "leads_salvamento_em_progresso" not in st.session_state:
+        st.session_state.leads_salvamento_em_progresso = False
+
+    # === RENDERIZAR DATA EDITOR ===
+    status_options = [
+        "negociando",
+        "sem_resposta",
+        "sem_interesse",
+        "vendido",
+    ]
+
+    editor_key = f"editor_leads_{tab_key}"
+
+    edited_df = st.data_editor(
+        df_exibir,
+        column_config={
+            "Status": st.column_config.SelectboxColumn(
+                "Status",
+                options=status_options,
+                required=True,
+            ),
+        },
+        disabled=[c for c in nomes_colunas if c != "Status"],
+        hide_index=True,
+        use_container_width=True,
+        key=editor_key,
+    )
+
+    # === DETECTAR MUDANÇAS E AUTO-SAVE ===
+    hash_original = hash(str(df_exibir.to_dict()))
+    hash_editado = hash(str(edited_df.to_dict()))
+
+    if (
+        hash_original != hash_editado
+        and hash_editado != st.session_state[session_key]
+        and not st.session_state.leads_salvamento_em_progresso
+    ):
+        st.session_state.leads_salvamento_em_progresso = True
+
+        mudancas = 0
+        supabase = get_cached_supabase_client()
+
+        try:
+            status_map = {
+                "negociando": "Negociando",
+                "sem_resposta": "Sem Resposta",
+                "sem_interesse": "Sem Interesse",
+                "vendido": "Vendido",
+            }
+
+            for idx, row in edited_df.iterrows():
+                status_original = df_exibir.iloc[idx]["Status"]
+                status_novo = row["Status"]
+
+                if status_original != status_novo:
+                    lead_id = leads[idx]["id"]
+                    supabase.table("leads").update({"status_lead": status_novo}).eq(
+                        "id", lead_id
+                    ).execute()
+                    mudancas += 1
+
+                    nome_cliente = leads[idx].get("nome_cliente", "N/A")
+                    anuncio = leads[idx].get("anuncio", "WhatsApp Direto")
+                    vendedor_nome = leads[idx].get("vendedor_nome", "N/A")
+                    status_label = status_map.get(status_novo, status_novo)
+                    descricao = (
+                        f"Lead {nome_cliente} - {anuncio} - "
+                        f"Status alterado para {status_label} "
+                        f"(Vendedor {vendedor_nome})"
+                    )
+                    registrar_atividade(
+                        loja["loja_id"],
+                        "status_lead_alterado",
+                        descricao,
+                    )
+
+            st.session_state[session_key] = hash_editado
+
+            if mudancas > 0:
+                st.toast(f"✓ {mudancas} lead(s) atualizado(s)", icon="✅")
+                time.sleep(0.3)
+
+        except Exception as e:
+            st.session_state[session_key] = hash_original
+            st.toast(f"❌ Erro ao salvar: {str(e)}", icon="🚫")
+
+        finally:
             st.session_state.leads_salvamento_em_progresso = False
 
-        # === RENDERIZAR DATA EDITOR ===
-        status_options = [
-            "negociando",
-            "sem_resposta",
-            "sem_interesse",
-            "vendido",
-        ]
-
-        # Key estável (não baseada em hash dos dados para manter estado do widget)
-        editor_key = f"editor_leads_{mostrar_coluna_status}"
-
-        edited_df = st.data_editor(
-            df_exibir,
-            column_config={
-                "Status": st.column_config.SelectboxColumn(
-                    "Status",
-                    options=status_options,
-                    required=True,
-                ),
-            },
-            disabled=[c for c in nomes_colunas if c != "Status"],
-            hide_index=True,
-            use_container_width=True,
-            key=editor_key,
-        )
-
-        # === DETECTAR MUDANÇAS E AUTO-SAVE ===
-        hash_original = hash(str(df_exibir.to_dict()))
-        hash_editado = hash(str(edited_df.to_dict()))
-
-        # Condições para auto-save:
-        # 1. Houve mudança REAL (hash diferente do original)
-        # 2. Hash editado é diferente do último salvo (evitar re-save após rerun)
-        # 3. Não estamos em meio a salvamento (prevenir loop infinito)
-        if (
-            hash_original != hash_editado
-            and hash_editado != st.session_state[session_key]
-            and not st.session_state.leads_salvamento_em_progresso
-        ):
-            # Marcar salvamento em progresso (previne concorrência)
-            st.session_state.leads_salvamento_em_progresso = True
-
-            # Contar mudanças para feedback
-            mudancas = 0
-
-            # Cliente Supabase
-            supabase = get_cached_supabase_client()
-
-            try:
-                # Comparar row-by-row para salvar apenas o que mudou
-                status_map = {
-                    "negociando": "Negociando",
-                    "sem_resposta": "Sem Resposta",
-                    "sem_interesse": "Sem Interesse",
-                    "vendido": "Vendido",
-                }
-
-                for idx, row in edited_df.iterrows():
-                    status_original = df_exibir.iloc[idx]["Status"]
-                    status_novo = row["Status"]
-
-                    if status_original != status_novo:
-                        lead_id = leads[idx]["id"]
-                        supabase.table("leads").update({"status_lead": status_novo}).eq(
-                            "id", lead_id
-                        ).execute()
-                        mudancas += 1
-
-                        # Registrar atividade
-                        nome_cliente = leads[idx].get("nome_cliente", "N/A")
-                        anuncio = leads[idx].get("anuncio", "WhatsApp Direto")
-                        vendedor_nome = leads[idx].get("vendedor_nome", "N/A")
-                        status_label = status_map.get(status_novo, status_novo)
-                        descricao = (
-                            f"Lead {nome_cliente} - {anuncio} - "
-                            f"Status alterado para {status_label} "
-                            f"(Vendedor {vendedor_nome})"
-                        )
-                        registrar_atividade(
-                            loja["loja_id"],
-                            "status_lead_alterado",
-                            descricao,
-                        )
-
-                # Atualizar tracking APENAS após sucesso total
-                st.session_state[session_key] = hash_editado
-
-                # Feedback visual não-intrusivo
-                if mudancas > 0:
-                    st.toast(f"✓ {mudancas} lead(s) atualizado(s)", icon="✅")
-                    time.sleep(0.3)  # Dar tempo para toast ser visto antes do rerun
-
-            except Exception as e:
-                # Rollback tracking em caso de erro
-                st.session_state[session_key] = hash_original
-                st.toast(f"❌ Erro ao salvar: {str(e)}", icon="🚫")
-
-            finally:
-                # SEMPRE resetar flag, mesmo em caso de erro
-                st.session_state.leads_salvamento_em_progresso = False
-
-            # Rerun para atualizar UI com dados frescos do banco
-            st.rerun()
-
-    else:
-        # Modo somente leitura (tabs de status específico)
-        st.dataframe(df_exibir, use_container_width=True, hide_index=True)
+        st.rerun()
 
     st.caption(f"Total: {len(leads)} leads")
 
 
-# Tab TODOS: Mostra coluna Status editavel
 with tab_todos:
     with st.container(border=True):
         st.markdown("#### Todos os Leads")
-        render_leads_table_filtrada(
-            leads_lista, mostrar_coluna_status=True, editavel=True
-        )
+        render_leads_table_filtrada(leads_lista, tab_key="todos")
 
-# Tabs por status: SEM coluna Status (redundante)
 with tab_negociando:
     with st.container(border=True):
         st.markdown("#### Leads em Negociacao")
         leads_negociando = [l for l in leads_lista if l["status_lead"] == "negociando"]
-        render_leads_table_filtrada(
-            leads_negociando, mostrar_coluna_status=False, editavel=False
-        )
+        render_leads_table_filtrada(leads_negociando, tab_key="negociando")
 
 with tab_sem_resposta:
     with st.container(border=True):
         st.markdown("#### Leads Sem Resposta")
         leads_sem_resposta = [l for l in leads_lista if l["status_lead"] == "sem_resposta"]
-        render_leads_table_filtrada(
-            leads_sem_resposta, mostrar_coluna_status=False, editavel=False
-        )
+        render_leads_table_filtrada(leads_sem_resposta, tab_key="sem_resposta")
 
 with tab_sem_interesse:
     with st.container(border=True):
         st.markdown("#### Leads Sem Interesse")
         leads_sem_interesse = [l for l in leads_lista if l["status_lead"] == "sem_interesse"]
-        render_leads_table_filtrada(
-            leads_sem_interesse, mostrar_coluna_status=False, editavel=False
-        )
+        render_leads_table_filtrada(leads_sem_interesse, tab_key="sem_interesse")
 
 with tab_vendido:
     with st.container(border=True):
         st.markdown("#### Vendas Concretizadas")
         leads_vendido = [l for l in leads_lista if l["status_lead"] == "vendido"]
-        render_leads_table_filtrada(
-            leads_vendido, mostrar_coluna_status=False, editavel=False
-        )
+        render_leads_table_filtrada(leads_vendido, tab_key="vendido")
 
 # ============================================
 # DICAS E INFORMACOES
@@ -380,9 +324,9 @@ with st.expander("Dicas de Uso"):
     **Como usar esta pagina:**
     1. Use os **filtros** no topo para encontrar leads especificos
     2. Navegue pelas **tabs** para ver diferentes contextos:
-       - **Todos**: Visao completa de todos os leads (editavel)
-       - **Negociando / Sem Resposta / Sem Interesse / Vendido**: Filtros por status (somente leitura)
-    3. Na tab **Todos**, clique em uma celula da coluna **Status** para alterar
+       - **Todos**: Visao completa de todos os leads
+       - **Negociando / Sem Resposta / Sem Interesse / Vendido**: Filtros por status
+    3. Clique em uma celula da coluna **Status** para alterar em qualquer tab
     4. **Salvamento automatico**: Mudancas sao salvas instantaneamente
 
     **Status disponiveis:**
@@ -392,7 +336,6 @@ with st.expander("Dicas de Uso"):
     - **Vendido**: Venda fechada com sucesso
 
     **Notas:**
-    - Apenas a tab **Todos** permite edicao
     - Salvamento e instantaneo - sem necessidade de botao
     - Se houver erro (ex: sem internet), uma notificacao de erro aparecera
     - Atualize a pagina (F5) se quiser garantir dados mais recentes
