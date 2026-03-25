@@ -67,7 +67,7 @@ with st.expander("Filtros", expanded=True):
     with col_origem:
         filtro_origem = st.selectbox(
             "Origem:",
-            ["Todas", "iCarros", "NaPista", "Mobiauto", "WhatsApp Direto"],
+            ["Todas", "iCarros", "NaPista", "Mobiauto", "Facebook", "OLX", "Mercado Livre", "WhatsApp Direto"],
             key="filtro_origem",
         )
 
