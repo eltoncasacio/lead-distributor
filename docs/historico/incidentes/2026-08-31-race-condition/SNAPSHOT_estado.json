@@ -1,0 +1,45 @@
+{
+  "capturado_em": "2026-08-31T20:11:56.763593+00:00",
+  "projeto_supabase": "drtdctpwxkqqnhnikpwz",
+  "loja": [
+    {
+      "id": "<LOJA_ID>",
+      "nome": "Renato Motors",
+      "proximo_vendedor_id": "f10219c5-f46a-42a1-b2c0-1ca7da87ee19",
+      "proximo_vendedor_nome": "Felipe",
+      "ultima_distribuicao_em": "2026-08-31T15:56:54.592552+00:00",
+      "ativa": true,
+      "instancia_evolution": "renato-motors"
+    }
+  ],
+  "vendedores_ordem_real_rodizio_por_criado_em": [
+    {"id":"853f5522-7d18-42b0-807d-a5405ca05641","nome":"Giu","status":"ativo","ordem_fila":2,"numero_whatsapp":"5519XXXXXXXXX","criado_em":"2026-02-13T19:35:19.060872+00:00"},
+    {"id":"77b0e908-97c1-4c4c-92fe-c5d604d6d6d6","nome":"André","status":"ativo","ordem_fila":1,"numero_whatsapp":"5519XXXXXXXXX","criado_em":"2026-02-13T19:36:02.339285+00:00"},
+    {"id":"5e7c15de-352b-41e0-a548-30bfee6b8bbe","nome":"Silas","status":"removido","ordem_fila":3,"numero_whatsapp":"5519XXXXXXXXX","criado_em":"2026-06-24T18:01:43.053059+00:00"},
+    {"id":"1ad074e5-d217-4031-8f72-7d321fe4df52","nome":"Japa","status":"ativo","ordem_fila":4,"numero_whatsapp":"5519XXXXXXXXX","criado_em":"2026-07-28T17:33:13.111084+00:00"},
+    {"id":"f10219c5-f46a-42a1-b2c0-1ca7da87ee19","nome":"Felipe","status":"ativo","ordem_fila":5,"numero_whatsapp":"5519XXXXXXXXX","criado_em":"2026-08-30T00:18:47.253187+00:00"}
+  ],
+  "contadores": {
+    "total_leads": 1162,
+    "total_atividades": 1256,
+    "ultimo_lead_id": "2036bf9c-d94e-4e13-b939-9e6aee653b93",
+    "ultimo_lead_criado_em": "2026-08-31T15:56:54.592552+00:00"
+  },
+  "funcao": {
+    "assinatura_alvo": "distribuir_lead(uuid,varchar,varchar,varchar,text,timestamptz,varchar)",
+    "md5_pg_get_functiondef_antes": "2fe1bc6ac396bea8727c5628b8cf56f9",
+    "dono": "postgres",
+    "security_definer": false,
+    "config": "search_path=public",
+    "grants": "anon=X/postgres, authenticated=X/postgres, service_role=X/postgres",
+    "sobrecarga_6_args_presente": true,
+    "sobrecarga_6_args_sera_tocada": false
+  },
+  "caso_do_incidente": {
+    "cliente": "5519XXXXXXXXX (Levi S.)",
+    "lead_1": {"id":"c7611c40-4be7-4843-8204-3fe677b73a25","vendedor":"André","recebido":"12:56:49","distribuido":"12:56:54.560713"},
+    "lead_2": {"id":"2036bf9c-d94e-4e13-b939-9e6aee653b93","vendedor":"Japa","recebido":"12:56:51","distribuido":"12:56:54.592552"},
+    "execucoes_n8n": ["8247 (15:56:52.600-15:56:58.919Z)", "8248 (15:56:53.235-15:56:59.915Z)"],
+    "nenhum_dado_alterado": true
+  }
+}
