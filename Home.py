@@ -78,6 +78,9 @@ pg = st.navigation(
         ),
         st.Page("pages/4_Leads.py", title="Leads", icon=":material/leaderboard:"),
         st.Page(
+            "pages/5_Triagem.py", title="Triagem", icon=":material/rule:"
+        ),
+        st.Page(
             "pages/2_👨‍💼_Gerentes.py",
             title="Gerentes",
             icon=":material/supervisor_account:",
@@ -225,6 +228,7 @@ with st.sidebar:
     # Navegacao manual (ordem visual = ordem do codigo)
     st.page_link("pages/1_📊_Dashboard.py", label="Dashboard", icon=":material/dashboard:")
     st.page_link("pages/4_Leads.py", label="Leads", icon=":material/leaderboard:")
+    st.page_link("pages/5_Triagem.py", label="Triagem", icon=":material/rule:")
     st.page_link("pages/2_👨‍💼_Gerentes.py", label="Gerentes", icon=":material/supervisor_account:")
     st.page_link("pages/3_👤_Vendedores.py", label="Vendedores", icon=":material/group:")
 

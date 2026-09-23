@@ -1029,3 +1029,190 @@ def get_metricas_funil(
             contagem[status] += 1
 
     return contagem
+
+
+# ============================================
+# TRIAGEM (mensagens_recebidas)
+# ============================================
+
+# Numeros oficiais das plataformas. Uma mensagem registrada com um destes como
+# telefone do cliente nao tem contato aproveitavel: quem escreveu foi a
+# plataforma repassando o lead, nao a pessoa. E o caso do NaPista desde que ele
+# tirou o telefone do template — ver docs/historico/incidentes/2026-09-23-napista-leads-perdidos/.
+NUMEROS_DE_PLATAFORMA = ["551131361712", "551130044558"]  # NaPista, iCarros
+
+
+def contar_mensagens_para_revisao(loja_id: str) -> int:
+    """Conta mensagens aguardando revisao humana.
+
+    Args:
+        loja_id: ID da loja.
+
+    Retorno:
+        Quantidade de mensagens sem telefone aproveitavel e ainda nao revisadas.
+    """
+    return len(listar_mensagens_para_revisao(loja_id))
+
+
+def listar_mensagens_para_revisao(loja_id: str) -> List[Dict[str, Any]]:
+    """Lista mensagens que chegaram mas nao viraram lead utilizavel.
+
+    Criterio: ainda nao revisada E o telefone registrado esta vazio ou e o
+    numero de uma plataforma (ou seja, nao da para falar com o cliente).
+    Enquanto o n8n nao carimbar o desfecho de cada mensagem, este e o sinal
+    disponivel — e cobre exatamente o caso que motivou a triagem.
+
+    Args:
+        loja_id: ID da loja.
+
+    Retorno:
+        Lista de mensagens, mais recentes primeiro.
+    """
+    supabase = get_cached_supabase_client()
+    response = (
+        supabase.table("mensagens_recebidas")
+        .select("*")
+        .eq("loja_id", loja_id)
+        .is_("revisado_em", "null")
+        .order("recebido_em", desc=True)
+        .limit(500)
+        .execute()
+    )
+    return [
+        m for m in (response.data or [])
+        if not (m.get("telefone_extraido") or "").strip()
+        or (m.get("telefone_extraido") or "") in NUMEROS_DE_PLATAFORMA
+    ]
+
+
+def listar_mensagens_recebidas(
+    loja_id: str,
+    revisadas: Optional[bool] = None,
+    origem: Optional[str] = None,
+    limite: int = 200,
+) -> List[Dict[str, Any]]:
+    """Lista mensagens registradas, com filtros opcionais.
+
+    Args:
+        loja_id: ID da loja.
+        revisadas: True so revisadas, False so pendentes, None todas.
+        origem: filtra por origem detectada.
+        limite: maximo de linhas.
+
+    Retorno:
+        Lista de mensagens, mais recentes primeiro.
+    """
+    supabase = get_cached_supabase_client()
+    query = (
+        supabase.table("mensagens_recebidas")
+        .select("*")
+        .eq("loja_id", loja_id)
+    )
+    if revisadas is True:
+        query = query.not_.is_("revisado_em", "null")
+    elif revisadas is False:
+        query = query.is_("revisado_em", "null")
+    if origem:
+        query = query.eq("origem_detectada", origem)
+
+    response = query.order("recebido_em", desc=True).limit(limite).execute()
+    return response.data or []
+
+
+def obter_mensagem_recebida(loja_id: str, mensagem_id: str) -> Optional[Dict[str, Any]]:
+    """Busca uma mensagem pelo ID, dentro da loja.
+
+    Args:
+        loja_id: ID da loja.
+        mensagem_id: ID da mensagem.
+
+    Retorno:
+        A mensagem, ou None se nao existir nessa loja.
+    """
+    supabase = get_cached_supabase_client()
+    response = (
+        supabase.table("mensagens_recebidas")
+        .select("*")
+        .eq("loja_id", loja_id)
+        .eq("id", mensagem_id)
+        .limit(1)
+        .execute()
+    )
+    return (response.data or [None])[0]
+
+
+def promover_mensagem_para_lead(
+    loja_id: str,
+    mensagem_id: str,
+    telefone: str,
+    nome: Optional[str] = None,
+    anuncio: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Promove uma mensagem em triagem a lead de verdade.
+
+    Chama a RPC `promover_mensagem_para_lead`, que por sua vez chama
+    `distribuir_lead` por dentro. Round-robin e deduplicacao continuam morando
+    so no Postgres (ADR 0001) — esta funcao nao decide para quem vai.
+
+    Args:
+        loja_id: ID da loja.
+        mensagem_id: ID da mensagem em triagem.
+        telefone: telefone do cliente, obtido pelo humano.
+        nome: nome do cliente (opcional).
+        anuncio: veiculo de interesse (opcional).
+
+    Retorno:
+        Dict com lead_id, vendedor_nome e duplicado.
+    """
+    supabase = get_cached_supabase_client()
+    response = supabase.rpc(
+        "promover_mensagem_para_lead",
+        {
+            "p_loja_id": loja_id,
+            "p_mensagem_id": mensagem_id,
+            "p_telefone": telefone,
+            "p_nome": nome,
+            "p_anuncio": anuncio,
+        },
+    ).execute()
+    resultado = (response.data or [{}])[0] if response.data else {}
+
+    # O lead ja existe neste ponto: a RPC e atomica. Falha ao registrar a
+    # atividade nao pode desfazer nem esconder isso, entao nao propaga.
+    try:
+        registrar_atividade(
+            loja_id,
+            "lead_promovido_de_triagem",
+            f"Lead promovido da triagem para {resultado.get('vendedor_nome', '?')}",
+        )
+    except Exception:
+        pass
+
+    return resultado
+
+
+def arquivar_mensagem(
+    loja_id: str, mensagem_id: str, motivo: Optional[str] = None
+) -> bool:
+    """Marca uma mensagem como nao-lead, sem apagar nada.
+
+    Args:
+        loja_id: ID da loja.
+        mensagem_id: ID da mensagem.
+        motivo: por que nao era lead (opcional).
+
+    Retorno:
+        True se a mensagem foi encontrada e arquivada.
+    """
+    supabase = get_cached_supabase_client()
+    response = supabase.rpc(
+        "arquivar_mensagem",
+        {"p_loja_id": loja_id, "p_mensagem_id": mensagem_id, "p_motivo": motivo},
+    ).execute()
+
+    try:
+        registrar_atividade(loja_id, "mensagem_triada", "Mensagem arquivada na triagem")
+    except Exception:
+        pass
+
+    return bool(response.data)
