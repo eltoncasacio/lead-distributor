@@ -56,8 +56,11 @@ reverter = "--reverter" in sys.argv
 aplicar  = "--aplicar" in sys.argv or reverter
 agora = datetime.datetime.now()
 if aplicar and not (3 <= agora.hour < 5):
-    print(f"!! {agora:%H:%M} fora da janela 03h-05h BRT.")
-    if input("   continuar? (digite SIM) ") != "SIM": sys.exit("abortado")
+    if "--fora-da-janela" not in sys.argv:
+        sys.exit(f"!! {agora:%H:%M} esta fora da janela 03h-05h BRT.\n"
+                 "   Para aplicar assim mesmo, repita o comando com --fora-da-janela\n"
+                 "   (a intencao fica explicita no comando, nao respondida por pipe).")
+    print(f"** aplicando FORA DA JANELA ({agora:%H:%M} BRT), por escolha explicita **")
 
 wf = req("GET", f"workflows/{WID}")
 nodes, conns = wf["nodes"], wf["connections"]

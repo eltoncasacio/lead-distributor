@@ -21,10 +21,12 @@ Agravante independente: a NaPista removeu o telefone do cliente do template novo
 | Passo | Estado | Quando | versionId |
 |---|---|---|---|
 | 0 · ligar alerta de conexão | **aplicado** | 2026-09-23 16:27 BRT | `e14f1ff7-aa49-4989-aaa7-b870a49f0ae8` → `e43645a3-2cda-4db7-9f40-6b6b969c1cdb` |
-| 1 · alerta de lead não distribuído | pendente | | |
+| 1 · alerta de lead não distribuído | **aplicado** | 2026-09-23 17:10 BRT | `e43645a3-2cda-4db7-9f40-6b6b969c1cdb` → `9c1f603f-7e23-4d36-84dc-3da803c8c597` |
 | 2 · causa raiz | pendente (bloqueado por `comando_leads`) | | |
 
-O Passo 0 foi aplicado **fora da janela 03h–05h**, por decisão do dono. Exposição medida: ~0,35 lead/hora às 16h, o que põe a chance de perda na janela de 1s do save em ~0,01%. Conferido depois: nenhuma execução entre a última anterior (id 8863, 15:17 BRT) e a aplicação — nada se perdeu.
+Os Passos 0 e 1 foram aplicados **fora da janela 03h–05h**, por decisão do dono. Exposição medida: ~0,35 lead/hora às 16h, o que põe a chance de perda na janela de 1s do save em ~0,01%. Conferido depois das duas aplicações: nenhuma execução entre a última anterior (id 8863, 15:17 BRT) e as mudanças — nada se perdeu. Grafo íntegro: 64 nós, `active: true`, os três caminhos bons (`Duplicado[não duplicado]`, `Vendedor[encontrado]`, `Loja[encontrada]`) apontando para os mesmos destinos de antes.
+
+O Passo 1 criou **dois** nós, não um: `Alerta Lead Nao Distribuido` (devolve ao `Loop Over Items`, continuando a iteração) e `Alerta Loja Nao Encontrada` (terminal). Ligar a saída de `Loja Encontrada?` no mesmo nó empurraria um item para dentro do `splitInBatches` e poderia acabar distribuído — seria um bug pior que o original.
 
 Critérios de aceite e checklist de cada passo: [ACEITE.md](ACEITE.md).
 

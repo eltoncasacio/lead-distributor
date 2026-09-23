@@ -45,13 +45,13 @@ Nenhuma fase é considerada aprovada sem estes quatro:
 
 ## Fase 1 — alertar quando um lead não é distribuído
 
-- [ ] Nó `Alerta Lead Nao Distribuido` existe com `onError: continueRegularOutput`
+- [x] Nós `Alerta Lead Nao Distribuido` e `Alerta Loja Nao Encontrada` existem, ambos com `onError: continueRegularOutput` e `retryOnFail` — aplicado 2026-09-23 17:10 BRT, `versionId 9c1f603f`
       **Critério de bloqueio:** sem esse `onError`, a fase não pode ir para produção. Uma falha de alerta derrubaria a execução e passaria a perder leads que hoje funcionam.
-- [ ] As três conexões refeitas, com o alerta **entre** o nó e seu destino original:
+- [x] As três conexões refeitas, com o alerta **entre** o nó e seu destino original:
       `Duplicado de Plataforma?` saída 0 → alerta → `Loop Over Items`
       `Vendedor Encontrado?` saída 1 → alerta → `Loop Over Items`
       `Loja Encontrada?` saída 1 → alerta
-- [ ] Nenhuma outra conexão do grafo mudou (comparar contra `ROLLBACK_workflow_n8n.json`)
+- [x] Nenhuma outra conexão do grafo mudou — conferido: 64 nós, `active: true`, `Duplicado[não duplicado] → Buscar Mensagens Prontas`, `Vendedor[encontrado] → Duplicado de Plataforma?`, `Loja[encontrada] → Preparar Dados Loja`
 
 **Testes:**
 
