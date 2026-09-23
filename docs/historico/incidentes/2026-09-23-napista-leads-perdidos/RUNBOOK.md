@@ -50,6 +50,8 @@ Critérios de aceite e checklist de cada passo: [ACEITE.md](ACEITE.md).
 
 ## Arquivos
 
+- `FIX_mensagens_recebidas.sql` / `ROLLBACK_mensagens_recebidas.sql` — Fase 3. **Não aplicados**: DDL não passa pela PostgREST, tem de ser rodado no SQL Editor do Supabase. Não tocam `leads` nem `distribuir_lead`.
+- `aplicar_fase0.py`, `aplicar_fase1.py`, `aplicar_fase2a.py`, `aplicar_fase2b.py` — todos com simulação por padrão, `--aplicar`, `--reverter` e recusa fora da janela sem `--fora-da-janela`.
 - `ROLLBACK_workflow_n8n.json` — export do workflow em `versionId e14f1ff7-aa49-4989-aaa7-b870a49f0ae8` (62 nós, `updatedAt 2026-09-22T22:46:46Z`). **Segredos redigidos** (14 ocorrências): serve como registro do estado anterior, **não** para restaurar. Restaurar este arquivo apagaria as credenciais embutidas nos nós.
 
 O rollback de verdade é a **version history do próprio n8n**: restaurar `e14f1ff7-aa49-4989-aaa7-b870a49f0ae8`, que preserva as credenciais.
