@@ -24,6 +24,21 @@ Agravante independente: a NaPista removeu o telefone do cliente do template novo
 | 1 · alerta de lead não distribuído | **aplicado** | 2026-09-23 17:10 BRT | `e43645a3-2cda-4db7-9f40-6b6b969c1cdb` → `9c1f603f-7e23-4d36-84dc-3da803c8c597` |
 | 2A · reescrever o parser | **aplicado** | 2026-09-23 17:23 BRT | `9c1f603f-7e23-4d36-84dc-3da803c8c597` → `07f90179-48bd-464b-bd71-9aeeff4ac4ac` |
 | 2B · campos + guarda | **aplicado** | 2026-09-23 17:30 BRT | `07f90179-48bd-464b-bd71-9aeeff4ac4ac` → `f4119765-69bd-40a1-8dd8-68dc5bce70b2` |
+| 3 · migration `mensagens_recebidas` | **aplicada pelo dono** | 2026-09-23 ~17:55 BRT | SQL Editor do Supabase |
+| 3 · nó `Registrar Mensagem` | **aplicado** | 2026-09-23 18:01 BRT | `f4119765-69bd-40a1-8dd8-68dc5bce70b2` → `ff4a9650-31ff-495c-a936-02f83a8a9949` |
+
+### Por que o registro é ramo lateral, e não um passo do caminho
+
+Um nó HTTP Request **substitui o item pela resposta da chamada**. Inserido entre `Normalizar Saída Lead` e `Loop Over Items`, ele entregaria ao `Distribuir Lead` o uuid devolvido pela RPC em vez do item com `telefone`, `anuncio` e `lojaId` — quebraria a distribuição inteira, de todas as origens.
+
+A solução é uma segunda conexão da mesma saída: os dois ramos recebem o mesmo item, rodam em paralelo, e o de registro é terminal. O caminho de distribuição fica byte a byte igual.
+
+Consequência aceita: o n8n registra a chegada, mas **não carimba o desfecho** (`decisao`, `lead_id`), porque carimbar depois exigiria outro nó HTTP no caminho, com o mesmo problema. O alarme "chegou e não virou nada" da Fase 7 não precisa disso: compara contagem de `mensagens_recebidas` contra `leads` por origem.
+
+### Limitações conhecidas declaradas
+
+- O parser do NaPista devolve **um** item por mensagem. Hoje está certo, mas o iCarros prova que uma mensagem pode trazer **N leads** numa lista numerada. Se a NaPista adotar esse formato, o parser pega só o primeiro.
+- O `mensagem_externa_id` do registro já leva o índice do item justamente para suportar N leads por mensagem sem que o índice único os colapse.
 
 ### Regressão evitada na simulação da 2B
 
