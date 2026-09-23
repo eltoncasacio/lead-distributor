@@ -102,7 +102,7 @@ Nenhuma fase é considerada aprovada sem estes quatro:
 ## Fase 3 — registrar toda mensagem
 
 - [ ] Migration aplicada: tabela `mensagens_recebidas` + `UNIQUE(loja_id, canal, mensagem_externa_id)` + 3 índices
-- [ ] `atividades.tipo` aceita `mensagem_triada` e `lead_promovido_de_triagem`
+- [x] `atividades.tipo` aceita `mensagem_triada` e `lead_promovido_de_triagem` — `FIX_atividades_tipo_triagem.sql` aplicado pelo dono. Conferido: aceita os dois novos, continua aceitando `novo_lead`/`status_lead_alterado`/`vendedor_adicionado`, e ainda rejeita tipo inventado
 - [ ] RPCs `registrar_mensagem_recebida`, `atualizar_desfecho_mensagem`, `promover_mensagem_para_lead` criadas
 - [ ] `promover_mensagem_para_lead` **chama `distribuir_lead` internamente** — nenhuma cópia de round-robin/dedup fora do Postgres
 - [ ] `python3 validate_signatures.py` passa
@@ -139,15 +139,16 @@ Nenhuma fase é considerada aprovada sem estes quatro:
 
 ## Fase 5 — tela de triagem
 
-- [ ] `pages/5_Triagem.py` registrada nos **dois** lugares de `Home.py`
-- [ ] Toda leitura/escrita via `utils/queries.py` — nenhuma chamada direta ao Supabase
-- [ ] Cards com `st.container(border=True)`, **não** `st.data_editor`
+- [x] `pages/5_Triagem.py` registrada nos **dois** lugares de `Home.py` (linhas 81 e 231)
+- [x] Toda leitura/escrita via `utils/queries.py` — nenhuma chamada direta ao Supabase
+- [x] Cards com `st.container(border=True)`, **não** `st.data_editor`
 - [ ] KPI "Com dúvida: N" no Dashboard, com link
 
 **Testes:**
 
-- [ ] Promover uma mensagem → lead criado pelo round-robin, `atividades` gravado
-- [ ] Arquivar → linha marcada, desfazer funciona
+- [ ] **Promover NÃO foi testado de propósito.** Criaria um lead real e avançaria o ponteiro da fila de vendedores, mudando quem recebe o próximo lead de verdade. Testar na primeira mensagem NaPista real que cair na triagem.
+- [x] **Arquivar testado na tela real** (2026-09-23 18:18 BRT): `decisao='arquivado'`, `revisao_acao='arquivado'`, `revisado_em` preenchido, `classificado_por='humano'`, texto original preservado, atividade `mensagem_triada` gravada, e os 1.259 leads intactos. A fila foi de 1 para 0 e a mensagem apareceu em "Já revisadas".
+- [ ] Desfazer um arquivamento (ainda não existe botão para isso — só promover a partir de "Já revisadas")
 - [ ] Login com código de outra loja não vê as mensagens desta (isolamento por `loja_id`)
 
 ---
