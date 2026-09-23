@@ -69,24 +69,23 @@ Nenhuma fase é considerada aprovada sem estes quatro:
 
 **Bloqueio antes de aplicar:**
 
-- [ ] Resolvido: `comando_leads` usa `mensagem_original`?
-      `SELECT prosrc FROM pg_proc WHERE proname='comando_leads'`
-      Se usar, a mudança de `p_mensagem_original` altera o que o vendedor lê pelo WhatsApp — decidir antes, não depois.
+- [x] **Resolvido sem acesso SQL** (2026-09-23): a RPC foi chamada em modo leitura e devolve `anuncio, horario, nome_cliente, origem, vendedor` — **não devolve `mensagem_original`**. A mudança é segura. Efeito colateral positivo: ela devolve `anuncio`, hoje vazio no NaPista, que passará a mostrar o veículo no comando `leads`.
 
 **Implementação:**
 
-- [ ] `Prepara Dados NaPista.telefone` = `{{ $json.telefone }}`
-- [ ] `Prepara Dados NaPista.anuncio` = `{{ $json.anuncio || $('Normaliza Dados').item.json.mensagemTexto }}`
-- [ ] `Distribuir Lead.p_mensagem_original` = `{{ $input.item.json.mensagemTexto }}`
-- [ ] Guarda antes de distribuir: telefone vazio **ou** dígitos iguais a `551131361712` / `551130044558` → não chama `distribuir_lead`, alerta
-- [ ] `Separar Leads NaPista` reescrito: lê de `Normaliza Dados`, try/catch, devolve `{parse_ok: true|false}`, **sem** `onError: continueRegularOutput`
+- [x] `Prepara Dados NaPista.telefone` = `{{ $json.telefone || $('Normaliza Dados').item.json.remetenteNumero }}` — o fallback é obrigatório, ver regressão evitada no RUNBOOK
+- [x] `Prepara Dados NaPista.anuncio` = `{{ $json.anuncio || '' }}` — o parser agora extrai o veículo, então não precisa cair na mensagem inteira
+- [x] `Distribuir Lead.p_mensagem_original` = `{{ $input.item.json.mensagemTexto }}` — conferido antes que as 8 origens produzem `mensagemTexto` e que `Normalizar Saída Lead` tem `includeOtherFields: true`
+- [x] Guarda `Telefone do Cliente?` entre `Prepara Dados NaPista` e `Normalizar Saída Lead`: saída true segue o fluxo, false vai para `Alerta NaPista Sem Telefone` (terminal, `onError: continueRegularOutput`)
+- [x] `Separar Leads NaPista` reescrito (Fase 2A, `versionId 07f90179`): lê de `Normaliza Dados`, try/catch, devolve `{parse_ok: true|false}`, `onError` removido. Regexes testados contra os seis formatos reais antes de aplicar
 
 **Testes:**
 
 - [ ] **Template com telefone:** `parse_ok: true`, `lead_id` não-nulo, `Encaminhar ao Vendedor` executado
 - [ ] **Template sem telefone** (o formato atual da NaPista): não chama `distribuir_lead`, gera alerta, e **não** cria lead com o número da plataforma
 - [ ] **`placeholderMessage`:** `parse_ok: false` + alerta, e nenhum objeto de erro descendo o fluxo
-- [ ] **Não regrediu nas outras origens:** um lead de WhatsApp direto, um de Mobiauto e um de Facebook distribuídos normalmente depois da mudança
+- [x] **Grafo das outras origens intacto:** as 7 outras `Prepara Dados *` continuam apontando direto para `Normalizar Saída Lead`. Falta ainda confirmar com leads reais distribuídos.
+- [ ] **Não regrediu nas outras origens, na prática:** um lead de WhatsApp direto, um de Mobiauto e um de Facebook distribuídos normalmente depois da mudança
 
 **Aprovado quando:**
 

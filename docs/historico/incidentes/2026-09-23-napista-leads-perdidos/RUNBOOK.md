@@ -23,7 +23,20 @@ Agravante independente: a NaPista removeu o telefone do cliente do template novo
 | 0 · ligar alerta de conexão | **aplicado** | 2026-09-23 16:27 BRT | `e14f1ff7-aa49-4989-aaa7-b870a49f0ae8` → `e43645a3-2cda-4db7-9f40-6b6b969c1cdb` |
 | 1 · alerta de lead não distribuído | **aplicado** | 2026-09-23 17:10 BRT | `e43645a3-2cda-4db7-9f40-6b6b969c1cdb` → `9c1f603f-7e23-4d36-84dc-3da803c8c597` |
 | 2A · reescrever o parser | **aplicado** | 2026-09-23 17:23 BRT | `9c1f603f-7e23-4d36-84dc-3da803c8c597` → `07f90179-48bd-464b-bd71-9aeeff4ac4ac` |
-| 2B · campos + guarda | pendente | | |
+| 2B · campos + guarda | **aplicado** | 2026-09-23 17:30 BRT | `07f90179-48bd-464b-bd71-9aeeff4ac4ac` → `f4119765-69bd-40a1-8dd8-68dc5bce70b2` |
+
+### Regressão evitada na simulação da 2B
+
+O plano original trocava `telefone` por `{{ $json.telefone }}` puro. **Isso quebraria o único caminho NaPista que ainda funciona**: quando o cliente manda o link do anúncio (23 leads no banco, o caso da Rosana), o parser não acha telefone no texto — mas o remetente **é** o cliente. O valor viraria `null` e a guarda barraria um lead bom.
+
+O valor aplicado é `{{ $json.telefone || $('Normaliza Dados').item.json.remetenteNumero }}`. O par fallback + guarda cobre os dois casos:
+
+| Caso | Parser | Remetente | Telefone final | Decisão |
+|---|---|---|---|---|
+| cliente manda o link | — | cliente | cliente | **distribui** |
+| template novo (Marcio) | — | NaPista | NaPista | alerta |
+| template antigo `wa.me` | cliente | NaPista | **cliente** | **distribui** |
+| `placeholderMessage` | — | NaPista | NaPista | alerta |
 
 **Bloqueio de `comando_leads` resolvido em 2026-09-23**, sem precisar de acesso SQL: a RPC foi chamada em modo leitura e devolve `anuncio, horario, nome_cliente, origem, vendedor` — **não devolve `mensagem_original`**. Trocar `p_mensagem_original` não afeta o que vendedor ou gerente leem pelo WhatsApp. Efeito colateral positivo: a RPC **devolve `anuncio`**, hoje vazio no NaPista, que passará a mostrar o veículo no comando `leads`.
 
