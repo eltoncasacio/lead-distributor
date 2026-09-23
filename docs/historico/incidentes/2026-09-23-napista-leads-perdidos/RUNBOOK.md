@@ -26,6 +26,16 @@ Agravante independente: a NaPista removeu o telefone do cliente do template novo
 | 2B · campos + guarda | **aplicado** | 2026-09-23 17:30 BRT | `07f90179-48bd-464b-bd71-9aeeff4ac4ac` → `f4119765-69bd-40a1-8dd8-68dc5bce70b2` |
 | 3 · migration `mensagens_recebidas` | **aplicada pelo dono** | 2026-09-23 ~17:55 BRT | SQL Editor do Supabase |
 | 3 · nó `Registrar Mensagem` | **aplicado** | 2026-09-23 18:01 BRT | `f4119765-69bd-40a1-8dd8-68dc5bce70b2` → `ff4a9650-31ff-495c-a936-02f83a8a9949` |
+| 3B · registrar o que a guarda barra | **aplicado** | 2026-09-23 18:22 BRT | `ff4a9650-31ff-495c-a936-02f83a8a9949` → `1570febe-d773-44ff-94be-0297477541a1` |
+| 5 · tela de triagem | **aplicada e aprovada** | 2026-09-23 18:18 BRT | commit `f585f89` |
+
+### Furo encontrado ao responder uma pergunta do dono (3B)
+
+Ao traçar o caminho de uma mensagem NaPista para explicar quando o alerta dispara, ficou visível que `Registrar Mensagem` pende de `Normalizar Saída Lead`, **mas a guarda `Telefone do Cliente?` barra antes disso**. A mensagem sem telefone do cliente — exatamente a que precisa de triagem — gerava alerta e **não** ficava registrada. A tela de triagem ficaria vazia para sempre para o caso que a motivou.
+
+Correção: a saída falsa da guarda passou a alimentar `Registrar Mensagem` além do alerta. Uma conexão.
+
+Lição registrada: um ramo lateral pendurado no caminho feliz não cobre o caminho infeliz. Ao inserir uma guarda **antes** de um ponto de registro, o registro precisa ser reconectado nos dois lados.
 
 ### Por que o registro é ramo lateral, e não um passo do caminho
 
