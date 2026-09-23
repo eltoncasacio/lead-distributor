@@ -55,7 +55,7 @@ Nenhuma fase é considerada aprovada sem estes quatro:
 
 **Testes:**
 
-- [ ] **Duplicata:** reenviar mensagem de cliente existente para o mesmo anúncio → alerta chega, e `Alerta Lead Nao Distribuido` aparece no `runData` da execução
+- [x] **Alerta real chegou.** Execução `8864` (2026-09-23 17:17:29 BRT): mensagem da NaPista (`551131361712`, `placeholderMessage` com texto vazio) → `distribuir_lead` devolveu `duplicado: true, lead_id: null` → `Duplicado de Plataforma?` saída 0 → `Alerta Lead Nao Distribuido` executou e a mensagem chegou no WhatsApp do operador. Foi o bug pego ao vivo, não um teste sintético.
 - [ ] **Sem vendedor:** com todos os vendedores inativos (em teste), uma mensagem nova → alerta chega
 - [ ] **Alerta falhando não derruba nada:** apontar o nó para uma URL inválida de propósito, mandar uma mensagem, e confirmar que o lead **mesmo assim** foi distribuído e a execução ficou `success`
 

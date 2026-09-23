@@ -22,7 +22,12 @@ Agravante independente: a NaPista removeu o telefone do cliente do template novo
 |---|---|---|---|
 | 0 · ligar alerta de conexão | **aplicado** | 2026-09-23 16:27 BRT | `e14f1ff7-aa49-4989-aaa7-b870a49f0ae8` → `e43645a3-2cda-4db7-9f40-6b6b969c1cdb` |
 | 1 · alerta de lead não distribuído | **aplicado** | 2026-09-23 17:10 BRT | `e43645a3-2cda-4db7-9f40-6b6b969c1cdb` → `9c1f603f-7e23-4d36-84dc-3da803c8c597` |
-| 2 · causa raiz | pendente (bloqueado por `comando_leads`) | | |
+| 2A · reescrever o parser | **aplicado** | 2026-09-23 17:23 BRT | `9c1f603f-7e23-4d36-84dc-3da803c8c597` → `07f90179-48bd-464b-bd71-9aeeff4ac4ac` |
+| 2B · campos + guarda | pendente | | |
+
+**Bloqueio de `comando_leads` resolvido em 2026-09-23**, sem precisar de acesso SQL: a RPC foi chamada em modo leitura e devolve `anuncio, horario, nome_cliente, origem, vendedor` — **não devolve `mensagem_original`**. Trocar `p_mensagem_original` não afeta o que vendedor ou gerente leem pelo WhatsApp. Efeito colateral positivo: a RPC **devolve `anuncio`**, hoje vazio no NaPista, que passará a mostrar o veículo no comando `leads`.
+
+A Fase 2 foi dividida porque as partes não podem ir juntas nem sozinhas na ordem errada: trocar `telefone` para o valor parseado **sem** a guarda mandaria `null` ao `distribuir_lead` no template atual da NaPista, que não traz telefone. E a guarda depende de um parser confiável. Logo: 2A (parser) primeiro, sozinho e sem mudança de comportamento; 2B (campos + guarda) depois, obrigatoriamente juntos.
 
 Os Passos 0 e 1 foram aplicados **fora da janela 03h–05h**, por decisão do dono. Exposição medida: ~0,35 lead/hora às 16h, o que põe a chance de perda na janela de 1s do save em ~0,01%. Conferido depois das duas aplicações: nenhuma execução entre a última anterior (id 8863, 15:17 BRT) e as mudanças — nada se perdeu. Grafo íntegro: 64 nós, `active: true`, os três caminhos bons (`Duplicado[não duplicado]`, `Vendedor[encontrado]`, `Loja[encontrada]`) apontando para os mesmos destinos de antes.
 
