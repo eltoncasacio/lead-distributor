@@ -28,6 +28,30 @@ Agravante independente: a NaPista removeu o telefone do cliente do template novo
 | 3 · nó `Registrar Mensagem` | **aplicado** | 2026-09-23 18:01 BRT | `f4119765-69bd-40a1-8dd8-68dc5bce70b2` → `ff4a9650-31ff-495c-a936-02f83a8a9949` |
 | 3B · registrar o que a guarda barra | **aplicado** | 2026-09-23 18:22 BRT | `ff4a9650-31ff-495c-a936-02f83a8a9949` → `1570febe-d773-44ff-94be-0297477541a1` |
 | 5 · tela de triagem | **aplicada e aprovada** | 2026-09-23 18:18 BRT | commit `f585f89` |
+| 2C · alertas para o gerente + link | **aplicado** | 2026-09-23 18:38 BRT | `1570febe` → `a5ea58b9-9462-44a4-ae4c-87fefdfc5906` |
+
+### Destino dos alertas (2C)
+
+Decisão do dono: o alerta de lead do NaPista vai para o **gerente**, que abre o link e se vira.
+
+| Alerta | Destino | Por quê |
+|---|---|---|
+| `Alerta Lead Nao Distribuido` | gerente `5519XXXXXXXXX` | pede ação comercial |
+| `Alerta NaPista Sem Telefone` | gerente `5519XXXXXXXXX` | idem, e leva o link do portal |
+| `Enviar Alerta Conexão` | dono `5519996977453` | falha de infraestrutura |
+| `Alerta Loja Nao Encontrada` | dono `5519996977453` | erro de configuração |
+
+O link da oportunidade **não está no texto da mensagem** — fica em `hydratedButtons[0].urlButton.url`. Sem ele, o gerente receberia nome e veículo e teria de caçar a oportunidade no portal. Foi acrescentado ao alerta.
+
+O rótulo do telefone foi escrito para não induzir erro: quando o número é o da plataforma, a mensagem diz `Telefone do cliente: NAO VEIO (o numero acima e da plataforma)` em vez de mostrá-lo como se fosse do cliente — senão o gerente liga para a central do NaPista.
+
+> **Débito conhecido:** os números de destino são fixos no nó, como já era o caso do alerta de conexão. Com mais de uma loja isso não escala — é o mesmo débito de onboarding manual já registrado na auditoria comercial de 2026-09-11.
+
+### Por que não virou lead
+
+O dono considerou criar o lead mesmo sem telefone, para o vendedor abrir o link. A investigação mostrou que isso exigiria usar o número da plataforma como identidade do cliente, com dois efeitos: o campo `numero_cliente` passaria a mentir, e o Passo 2 do `distribuir_lead` poderia grudar todos os leads do NaPista num vendedor só.
+
+Evidência medida: os 2 leads históricos gravados com o número do NaPista foram para vendedores **diferentes** (Giu em 06/04, André em 24/06, ambos ativos), e 16 de 82 clientes com mais de um lead trocaram de vendedor. Ou seja, a amarração é mais fraca do que a spec afirma — mas a regra exata está no Postgres e não foi possível ler o código-fonte da função. Sem essa certeza, o dono optou por manter alerta em vez de lead.
 
 ### Furo encontrado ao responder uma pergunta do dono (3B)
 
