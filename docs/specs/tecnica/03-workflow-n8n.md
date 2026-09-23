@@ -65,18 +65,26 @@ O código de `Extrai Dados NaPista` tem o `lojaId`, a URL e a chave da Evolution
 
 ## Alerta de conexão da Evolution API (não documentado antes)
 
-Quando o Webhook principal recebe um evento que **não** é mensagem (`É Mensagem?` = não), o workflow monta uma mensagem de alerta (`Montar Alerta`, nó de código) lendo `body.data.state` do payload — `close` vira "❌ DESCONECTADO" com aviso de que leads podem se perder, `open` vira "✅ RECONECTADO" — e envia via `Enviar Alerta Conexão` (chamada HTTP direta à Evolution API, `apikey` também hardcoded no nó) para um número de WhatsApp fixo (presumivelmente o operador/dono do sistema). Esse nó tem `onError: continueRegularOutput`, ou seja, se o envio do alerta falhar, não derruba a execução do workflow.
+Quando o Webhook principal recebe um evento que **não** é mensagem (`É Mensagem?` = não), o workflow monta uma mensagem de alerta (`Montar Alerta`, nó de código) lendo `body.data.state` do payload — `close` vira "❌ DESCONECTADO" com aviso de que leads podem se perder, `open` vira "✅ RECONECTADO".
+
+> ⚠️ **Esse alerta nunca disparou.** Verificado no grafo ao vivo em 2026-09-23: `Montar Alerta` tem `main: [[]]` — saída vazia — e `Enviar Alerta Conexão` não recebe conexão de nenhum nó. O workflow monta a mensagem e a descarta. Versões anteriores deste documento afirmavam que o alerta funcionava; era falso.
+
+O nó `Enviar Alerta Conexão` existe e está configurado (chamada HTTP direta à Evolution API, `apikey` hardcoded no nó, destino de WhatsApp fixo, `onError: continueRegularOutput`) — só não está ligado. Ligá-lo é uma conexão.
+
+Volume que isso esconde: **62 quedas e 62 reconexões em 14 dias** (2026-09-09 a 2026-09-23), cerca de 4 por dia, pico de 18 num único dia. É a explicação mais provável dos `placeholderMessage` — mensagens que a Evolution recebe mas não consegue decifrar após reiniciar a sessão.
 
 ## Distribuição e comandos (nós finais, comuns a lead e comando)
 
 - **Identificar Comando** (switch de 3 saídas: `status`, `leads`, `Não Reconhecido`) → `Buscar Status`/`Buscar Leads` (RPC via HTTP) → `Montar Resp Status`/`Montar Resp Leads` → `Enviar Resp Comando`.
-- **Distribuir Lead** → **Vendedor Encontrado?** (compara `vendedor_id` com a string `"null"`, não com `null` real — fragilidade já sinalizada em auditorias anteriores do projeto, ainda presente) → **Duplicado de Plataforma?** (duplicado E remetente é número oficial iCarros/NaPista → NoOp; senão → `Buscar Mensagens Prontas` → `Montar Notificação` → `Encaminhar ao Vendedor`).
+- **Distribuir Lead** → **Vendedor Encontrado?** (compara `vendedor_id` com a string `"null"`, não com `null` real — fragilidade já sinalizada em auditorias anteriores do projeto, ainda presente) → **Duplicado de Plataforma?** → se não for descarte, `Buscar Mensagens Prontas` → `Montar Notificação` → `Encaminhar ao Vendedor`.
 
-## Workflow separado: "Lembrete Leads Pendentes (Diário)"
+> Correção de 2026-09-23: o descarte **não** é um nó NoOp, como este documento afirmava. `Duplicado de Plataforma?` saída 0 e `Vendedor Encontrado?` saída 1 voltam ambas ao `Loop Over Items`, encerrando a iteração em silêncio — sem lead, sem alerta, execução marcada `success`. (O nó `No Operation, do nothing` do grafo é alimentado por `Filtro fromMe`, o filtro de eco, e não tem relação com isso.) Foi por esse caminho que 14 de 15 mensagens do NaPista se perderam entre 09/09 e 23/09 — ver [historico/incidentes/2026-09-23-napista-leads-perdidos](../../historico/incidentes/2026-09-23-napista-leads-perdidos/RUNBOOK.md).
 
-- **ID**: `7MXTR5JegFMkihWc`, **status: inativo**, 8 nós.
-- Grafo: `Schedule Trigger` → `Buscar Vendedores Ativos` → (loop) `Buscar Leads Pendentes` por vendedor → `Tem Leads Pendentes?` → se sim, `Formatar Mensagem Lembrete` → `Enviar Lembrete WhatsApp`.
-- É a implementação de uma ideia que estava listada como "melhoria futura não implementada" em documentação antiga (`IDEIAS_MELHORIA.md`) — na verdade **já foi construída**, só não está ligada. Ver [PRD §7](../../PRD.md) e [roadmap.md](../../roadmap.md).
+## Workflow separado: "Lembrete Leads Pendentes (Diário)" — removido
+
+**Este workflow não existe mais.** Ele chegou a ser construído (ID `7MXTR5JegFMkihWc`, 8 nós, nunca ativado) e estava documentado aqui como "inativo", mas foi **removido do n8n pelo dono do sistema** — ausência confirmada ao vivo na auditoria comercial de 2026-09-11 (`n8n_list_workflows`, com e sem filtro `active:false`) e a remoção confirmada pelo dono em 2026-09-22.
+
+O ambiente n8n tem hoje **um único workflow**: "Renato Motors Amarrar Lead". A ideia de lembrete de leads pendentes volta a ser, portanto, uma melhoria não implementada — ver [PRD §7](../../PRD.md), [roadmap.md](../../roadmap.md) e [historico/AUDITORIA_COMERCIAL_2026-09-11.md](../../historico/AUDITORIA_COMERCIAL_2026-09-11.md#2-achado-confirmado-divergência-sobre-o-workflow-lembrete-leads-pendentes).
 
 ## O que não foi confirmado
 

@@ -11,13 +11,15 @@
 | Nenhum vendedor ativo na loja no momento da distribuição | `distribuir_lead()` levanta exceção SQL; a chamada HTTP do n8n falha; **o lead não é persistido** (diferente do que documentação antiga afirmava — não há gravação com `vendedor_id = NULL`) |
 | Mensagem duplicada de cliente já atendido | Ver [regras-de-negocio/05](../regras-de-negocio/05-deduplicacao.md) |
 | Mensagens concorrentes do mesmo cliente | Serializadas por lock desde 31/08/2026 (ver [ADR 0002](../../adr/0002-lock-advisory-race-condition.md)) |
-| Evolution API muda de estado (conecta/desconecta) | Gera um alerta de WhatsApp para um número fixo (não documentado antes desta reescrita) |
-| Falha ao enviar o alerta de conexão em si | O nó tem `onError: continueRegularOutput` — não derruba a execução |
+| Evolution API muda de estado (conecta/desconecta) | **Não gera alerta nenhum.** O nó `Montar Alerta` monta a mensagem e sua saída não vai a lugar nenhum; `Enviar Alerta Conexão` é nó órfão, sem entrada. Verificado no grafo ao vivo em 2026-09-23. Ocorre ~4×/dia (62 quedas + 62 reconexões em 14 dias) |
+| Falha ao enviar o alerta de conexão em si | Irrelevante hoje: o nó nunca é alcançado (ver linha acima). Ele tem `onError: continueRegularOutput`, então quando for ligado não derrubará a execução |
 | Falha ao parsear e-mail da NaPista (regex) | O nó de extração tem `onError: continueRegularOutput` — segue sem quebrar o workflow, mas não há alerta específico se a extração falhar/vier vazia |
 
 ## Gaps ainda não resolvidos (herdados de auditorias anteriores, não corrigidos nesta rodada — só documentação)
 
-- **Sem retry configurado nos nós HTTP** que chamam Supabase/Evolution API (não verificado node a node em todos os 62, mas nenhum dos nós inspeccionados tem política de retry; auditorias técnicas anteriores do projeto contaram 13+ nós HTTP sem retry). Uma falha temporária de rede/timeout do Supabase faz a mensagem se perder.
+- **Retry existe, ao contrário do que este documento afirmava.** Verificado no grafo ao vivo em 2026-09-23: **8 nós têm `retryOnFail`** — `Identificar Loja`, `Distribuir Lead`, `Buscar Status`, `Buscar Leads`, `Enviar Resp Comando`, `Cmd Não Reconhecido`, `Acessar Leads` e `Encaminhar ao Vendedor`, ou seja, todo o caminho crítico de distribuição. **Sem retry**: `Identificar Remetente`, `Buscar Mensagens Prontas`, `Buscar Loja Mobiauto` e `Buscar Loja Webmotors` — destes, `Identificar Remetente` é o único no caminho crítico.
+- **Não há `errorWorkflow` configurado** nas settings do workflow. Uma falha definitiva (depois dos retries) encerra a execução sem avisar ninguém.
+- **Cinco caminhos de perda silenciosa**, todos verificados no grafo: `Duplicado de Plataforma?` saída 0 e `Vendedor Encontrado?` saída 1 voltam ao `Loop Over Items` sem alerta; `Loja Encontrada?` saída 1 não tem conexão nenhuma; `Separar Leads icarros` faz `return []` quando o regex não casa; e `Separar Leads NaPista` estoura em `placeholderMessage` e, por ter `onError: continueRegularOutput`, emite o **objeto de erro como dado** para o resto do fluxo.
 - **Falha ao encaminhar a mensagem para o vendedor não é detectada**: se `Encaminhar ao Vendedor` falhar depois que o lead já foi gravado como distribuído, o lead fica "atribuído" no banco mas o vendedor nunca recebe a notificação, e ninguém é avisado.
 - **Sem `onError` global no Webhook principal**: um erro não tratado no meio do fluxo pode fazer a Evolution API reenviar o evento, arriscando duplicar o processamento da mesma mensagem.
 - **Comparação `vendedor_id !== "null"` como string**, não como valor nulo real, no nó "Vendedor Encontrado?" — funciona hoje porque o retorno HTTP serializa `null` como string `"null"`, mas é frágil a qualquer mudança de serialização.

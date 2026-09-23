@@ -19,7 +19,7 @@ Dashboard Web (Streamlit) ──(service_role key)──▶ Supabase (Postgres)
 ```
 
 - **Evolution API**: gateway de WhatsApp (QR code, envio/recebimento). Camada de transporte pura — nenhuma regra de negócio aqui.
-- **n8n**: orquestração. Workflow ativo de produção: **"Renato Motors Amarrar Lead"** (id `Qj200sqS9544ao3d`), 62 nós, 45 conexões, atualizado pela última vez em 2026-06-23. Existem 3 outras versões do workflow arquivadas (histórico de iterações, não usadas em produção) e um segundo workflow independente, "Lembrete Leads Pendentes (Diário)", construído mas **inativo**.
+- **n8n**: orquestração. Workflow ativo de produção: **"Renato Motors Amarrar Lead"** (id `Qj200sqS9544ao3d`), 62 nós, 45 conexões, atualizado pela última vez em 2026-06-23. Existem 3 outras versões do workflow arquivadas (histórico de iterações, não usadas em produção). **Este é o único workflow no ambiente n8n** — um segundo workflow, "Lembrete Leads Pendentes (Diário)", chegou a existir mas foi removido pelo dono do sistema (confirmado em 2026-09-22).
 - **Supabase (Postgres)**: persistência **e** regra de negócio — as decisões de round-robin/deduplicação vivem em funções SQL (`distribuir_lead`, `identificar_remetente`, `comando_status`, `comando_leads`), não no n8n. RLS está habilitado nas tabelas, mas as policies reais são majoritariamente "negar tudo para `anon`" — o isolamento entre lojas depende da aplicação filtrar por `loja_id` (ver [regras-de-negocio/04](../regras-de-negocio/04-isolamento-multi-loja.md)).
 - **Dashboard Web (Streamlit)**: interface de gestão para gerentes, acessa o Supabase com a chave de serviço (`service_role`, contorna RLS). Ver [05-dashboard-streamlit.md](05-dashboard-streamlit.md).
 

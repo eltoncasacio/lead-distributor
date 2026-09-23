@@ -15,7 +15,7 @@ CHECK constraint real no banco: `negociando` (default) → `sem_resposta` | `sem
 | `sem_interesse` | Cliente não quer mais comprar. | Gerente/vendedor, manual |
 | `vendido` | Venda concluída. | Gerente/vendedor, manual |
 
-Não há SLA, prazo ou fechamento automático — um lead pode ficar `negociando` indefinidamente (isso motivou o workflow "Lembrete Leads Pendentes", construído mas hoje desativado — ver [PRD §7](../../PRD.md)).
+Não há SLA, prazo ou fechamento automático — um lead pode ficar `negociando` indefinidamente (isso motivou o workflow "Lembrete Leads Pendentes", que chegou a ser construído mas nunca foi ativado e hoje não existe mais no n8n — ver [PRD §7](../../PRD.md)).
 
 ## Entrada de um lead
 
