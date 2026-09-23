@@ -16,6 +16,18 @@ Três defeitos somados, todos na camada de entrada:
 
 Agravante independente: a NaPista removeu o telefone do cliente do template novo e cortou o canal de e-mail em 2026-08-14. Sem telefone não há para quem distribuir — isso é comercial, não tem correção em código.
 
+## Estado da aplicação
+
+| Passo | Estado | Quando | versionId |
+|---|---|---|---|
+| 0 · ligar alerta de conexão | **aplicado** | 2026-09-23 16:27 BRT | `e14f1ff7-aa49-4989-aaa7-b870a49f0ae8` → `e43645a3-2cda-4db7-9f40-6b6b969c1cdb` |
+| 1 · alerta de lead não distribuído | pendente | | |
+| 2 · causa raiz | pendente (bloqueado por `comando_leads`) | | |
+
+O Passo 0 foi aplicado **fora da janela 03h–05h**, por decisão do dono. Exposição medida: ~0,35 lead/hora às 16h, o que põe a chance de perda na janela de 1s do save em ~0,01%. Conferido depois: nenhuma execução entre a última anterior (id 8863, 15:17 BRT) e a aplicação — nada se perdeu.
+
+Critérios de aceite e checklist de cada passo: [ACEITE.md](ACEITE.md).
+
 ## Arquivos
 
 - `ROLLBACK_workflow_n8n.json` — export do workflow em `versionId e14f1ff7-aa49-4989-aaa7-b870a49f0ae8` (62 nós, `updatedAt 2026-09-22T22:46:46Z`). **Segredos redigidos** (14 ocorrências): serve como registro do estado anterior, **não** para restaurar. Restaurar este arquivo apagaria as credenciais embutidas nos nós.
