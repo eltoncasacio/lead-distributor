@@ -28,18 +28,23 @@ Agravante independente: a NaPista removeu o telefone do cliente do template novo
 | 3 · nó `Registrar Mensagem` | **aplicado** | 2026-09-23 18:01 BRT | `f4119765-69bd-40a1-8dd8-68dc5bce70b2` → `ff4a9650-31ff-495c-a936-02f83a8a9949` |
 | 3B · registrar o que a guarda barra | **aplicado** | 2026-09-23 18:22 BRT | `ff4a9650-31ff-495c-a936-02f83a8a9949` → `1570febe-d773-44ff-94be-0297477541a1` |
 | 5 · tela de triagem | **aplicada e aprovada** | 2026-09-23 18:18 BRT | commit `f585f89` |
-| 2C · alertas para o gerente + link | **aplicado** | 2026-09-23 18:38 BRT | `1570febe` → `a5ea58b9-9462-44a4-ae4c-87fefdfc5906` |
+| 2C · link da oportunidade no alerta | **aplicado** | 2026-09-23 18:38 BRT | `1570febe` → `a5ea58b9-9462-44a4-ae4c-87fefdfc5906` |
+| 2C' · destino de volta ao dono, para teste | **aplicado** | 2026-09-23 18:44 BRT | `a5ea58b9` → `7ac9a10d-46e4-4563-98a1-512477493a6f` |
 
 ### Destino dos alertas (2C)
 
 Decisão do dono: o alerta de lead do NaPista vai para o **gerente**, que abre o link e se vira.
 
-| Alerta | Destino | Por quê |
+**Estado atual: todos os alertas vão para o dono (`5519996977453`)**, por escolha dele, para observar o comportamento antes de repassar ao gerente.
+
+| Alerta | Destino hoje | Destino pretendido |
 |---|---|---|
-| `Alerta Lead Nao Distribuido` | gerente `5519XXXXXXXXX` | pede ação comercial |
-| `Alerta NaPista Sem Telefone` | gerente `5519XXXXXXXXX` | idem, e leva o link do portal |
-| `Enviar Alerta Conexão` | dono `5519996977453` | falha de infraestrutura |
-| `Alerta Loja Nao Encontrada` | dono `5519996977453` | erro de configuração |
+| `Alerta Lead Nao Distribuido` | dono `5519996977453` | gerente `5519XXXXXXXXX` |
+| `Alerta NaPista Sem Telefone` | dono `5519996977453` | gerente `5519XXXXXXXXX` |
+| `Enviar Alerta Conexão` | dono | dono — falha de infraestrutura |
+| `Alerta Loja Nao Encontrada` | dono | dono — erro de configuração |
+
+Para repassar os dois primeiros ao gerente, trocar `number: '5519996977453'` por `number: '5519XXXXXXXXX'` no `jsonBody` desses dois nós. O link e o rótulo do telefone são independentes do destino e já estão no lugar.
 
 O link da oportunidade **não está no texto da mensagem** — fica em `hydratedButtons[0].urlButton.url`. Sem ele, o gerente receberia nome e veículo e teria de caçar a oportunidade no portal. Foi acrescentado ao alerta.
 
