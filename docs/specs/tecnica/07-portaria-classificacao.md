@@ -1,6 +1,23 @@
 # Portaria — classificação de mensagens (prompt v2)
 
-> **STATUS: proposta, não implementado.** Nada neste documento está em produção. É o desenho da Fase 4 do plano de remediação de 2026-09-23. Quando for implementado, este aviso sai e o documento passa a descrever o que existe.
+> **STATUS (2026-09-23): parcialmente construído, nada em produção.**
+>
+> | Peça | Estado |
+> |---|---|
+> | Prompt, few-shot, schema | **código**, em [`portaria/prompt.py`](../../../portaria/prompt.py) |
+> | Travas pós-modelo (telefone literal, evidência literal, fail open) | **código + 13 testes** em `tests/test_portaria_travas.py` |
+> | Funil determinístico | **medido** contra 512 mensagens reais — ver abaixo |
+> | Harness de avaliação | escrito (`portaria/avaliar.py`), **nunca rodado** — falta rótulo humano e `ANTHROPIC_API_KEY` |
+> | Nó no n8n | **não existe** |
+> | Ramo sombra (Fase 6) | **não existe** |
+>
+> **`portaria/prompt.py` é a fonte única.** Se este documento divergir dele, o documento é que está errado. O raciocínio mora aqui; o que roda mora lá.
+
+> **Medição do funil (2026-09-23)**, contra as 512 mensagens reais de "WhatsApp Direto":
+> só saudação **23,4%** (o spec previa 24% — bateu), mídia sem texto/vazia **3,9%**,
+> **vai para a IA: 72,7%**. O spec estimava ~60% — a estimativa era otimista.
+> Ressalva: medido sobre `leads`, que só tem mensagens que viraram lead e já
+> passaram por deduplicação. Refazer quando `mensagens_recebidas` tiver volume.
 
 Todos os exemplos abaixo são mensagens **reais** da Renato Motors, tiradas dos 511 leads de origem "WhatsApp Direto".
 

@@ -4,3 +4,6 @@ __pycache__/
 .venv/
 venv/
 .streamlit/secrets.toml
+
+# Portaria: amostras com mensagens reais de clientes — nao commitar
+portaria/*.csv

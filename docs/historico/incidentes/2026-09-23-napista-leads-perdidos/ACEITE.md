@@ -129,9 +129,11 @@ Nenhuma fase é considerada aprovada sem estes quatro:
 
 **Guardas — critérios de bloqueio:**
 
-- [ ] Telefone só aceito se os dígitos aparecerem **literalmente** no payload bruto. Teste: forçar o modelo a devolver um número inventado e confirmar que é descartado
-- [ ] `trecho_evidencia` que não for substring literal do texto força `incerto`
-- [ ] **Fail open:** derrubar a IA de propósito (chave inválida) e confirmar que a mensagem é distribuída assim mesmo, marcada `distribuido_com_duvida`
+- [x] Telefone só aceito se os dígitos aparecerem **literalmente** no payload bruto — `test_telefone_inventado_e_descartado` e mais 3 casos
+- [x] `trecho_evidencia` que não for substring literal do texto força `incerto` — `test_evidencia_parafraseada_forca_incerto` e mais 3
+- [x] **Fail open** na lógica de decisão — `test_fail_open_*` e `test_resposta_vazia_ou_quebrada_nao_arquiva`
+
+> ⚠️ Os três acima estão cobertos por **teste automatizado da lógica** (`tests/test_portaria_travas.py`, roda sem rede). Isso prova que o código pós-modelo faz o que promete. **Não prova a fiação no n8n** — derrubar a IA de propósito com chave inválida e ver a mensagem ser distribuída continua pendente, e só dá para testar quando o nó existir.
 
 **Aprovado quando:** o portão da Fase 6 passou. Não antes.
 
