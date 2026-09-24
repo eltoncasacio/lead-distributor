@@ -59,56 +59,57 @@ def adicionar_gerente(loja_id: str, nome: str, whatsapp: str) -> Dict[str, Any]:
     return response.data[0] if response.data else None
 
 
-def editar_gerente(gerente_id: str, nome: str, whatsapp: str, loja_id: str = None) -> Dict[str, Any]:
-    """Edita gerente existente."""
+def editar_gerente(gerente_id: str, nome: str, whatsapp: str, loja_id: str) -> Dict[str, Any]:
+    """Edita gerente existente, dentro da loja."""
     supabase = get_cached_supabase_client()
-    query = (
+    response = (
         supabase.table("gerentes")
         .update({
             "nome": nome,
             "numero_whatsapp": whatsapp
         })
         .eq("id", gerente_id)
+        .eq("loja_id", loja_id)
+        .execute()
     )
-    if loja_id:
-        query = query.eq("loja_id", loja_id)
-    response = query.execute()
     return response.data[0] if response.data else None
 
 
-def desativar_gerente(gerente_id: str, loja_id: str = None) -> Dict[str, Any]:
-    """Desativa gerente (soft delete)."""
+def desativar_gerente(gerente_id: str, loja_id: str) -> Dict[str, Any]:
+    """Desativa gerente (soft delete), dentro da loja."""
     supabase = get_cached_supabase_client()
-    query = (
+    response = (
         supabase.table("gerentes")
         .update({"ativo": False})
         .eq("id", gerente_id)
+        .eq("loja_id", loja_id)
+        .execute()
     )
-    if loja_id:
-        query = query.eq("loja_id", loja_id)
-    response = query.execute()
-    if response.data and loja_id:
+    if response.data:
         registrar_atividade(loja_id, "gerente_desativado", f"Gerente {response.data[0]['nome']} desativado")
     return response.data[0] if response.data else None
 
 
-def deletar_gerente(gerente_id: str, loja_id: str = None) -> bool:
-    """Deleta gerente permanentemente."""
+def deletar_gerente(gerente_id: str, loja_id: str) -> bool:
+    """Deleta gerente permanentemente, dentro da loja."""
     supabase = get_cached_supabase_client()
     # Buscar nome antes de deletar (para log)
-    nome_gerente = None
-    if loja_id:
-        info = supabase.table("gerentes").select("nome").eq("id", gerente_id).eq("loja_id", loja_id).execute()
-        nome_gerente = info.data[0]["nome"] if info.data else None
-    query = (
+    info = (
+        supabase.table("gerentes")
+        .select("nome")
+        .eq("id", gerente_id)
+        .eq("loja_id", loja_id)
+        .execute()
+    )
+    nome_gerente = info.data[0]["nome"] if info.data else None
+    (
         supabase.table("gerentes")
         .delete()
         .eq("id", gerente_id)
+        .eq("loja_id", loja_id)
+        .execute()
     )
-    if loja_id:
-        query = query.eq("loja_id", loja_id)
-    query.execute()
-    if nome_gerente and loja_id:
+    if nome_gerente:
         registrar_atividade(loja_id, "gerente_removido", f"Gerente {nome_gerente} removido")
     return True
 
@@ -164,8 +165,8 @@ def adicionar_vendedor(
     return response.data[0] if response.data else None
 
 
-def editar_vendedor(vendedor_id: str, nome: str, whatsapp: str) -> Dict[str, Any]:
-    """Edita vendedor existente."""
+def editar_vendedor(loja_id: str, vendedor_id: str, nome: str, whatsapp: str) -> Dict[str, Any]:
+    """Edita vendedor existente, dentro da loja."""
     supabase = get_cached_supabase_client()
     response = (
         supabase.table("vendedores")
@@ -174,24 +175,30 @@ def editar_vendedor(vendedor_id: str, nome: str, whatsapp: str) -> Dict[str, Any
             "numero_whatsapp": whatsapp
         })
         .eq("id", vendedor_id)
+        .eq("loja_id", loja_id)
         .execute()
     )
     return response.data[0] if response.data else None
 
 
-def alterar_status_vendedor(vendedor_id: str, novo_status: str) -> Dict[str, Any]:
+def alterar_status_vendedor(loja_id: str, vendedor_id: str, novo_status: str) -> Dict[str, Any]:
     """
-    Altera status do vendedor (ativo/inativo/removido).
+    Altera status do vendedor (ativo/inativo/removido), dentro da loja.
     Se inativar/remover, recalcula próximo_vendedor_id da loja.
     """
     supabase = get_cached_supabase_client()
 
     # Buscar dados do vendedor antes de alterar
-    vendedor = supabase.table("vendedores").select("*").eq("id", vendedor_id).execute()
+    vendedor = (
+        supabase.table("vendedores")
+        .select("*")
+        .eq("id", vendedor_id)
+        .eq("loja_id", loja_id)
+        .execute()
+    )
     if not vendedor.data:
         return None
 
-    loja_id = vendedor.data[0]["loja_id"]
     nome_vendedor = vendedor.data[0]["nome"]
 
     # Alterar status
@@ -199,6 +206,7 @@ def alterar_status_vendedor(vendedor_id: str, novo_status: str) -> Dict[str, Any
         supabase.table("vendedores")
         .update({"status": novo_status})
         .eq("id", vendedor_id)
+        .eq("loja_id", loja_id)
         .execute()
     )
 

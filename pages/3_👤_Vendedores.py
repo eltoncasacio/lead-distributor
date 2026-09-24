@@ -117,7 +117,7 @@ if st.session_state.editando_vendedor:
 
             try:
                 if vendedor_atual:
-                    editar_vendedor(vendedor_atual["id"], nome, whatsapp_formatado)
+                    editar_vendedor(loja["loja_id"], vendedor_atual["id"], nome, whatsapp_formatado)
                     success_message(f"Vendedor **{nome}** atualizado!")
                 else:
                     adicionar_vendedor(loja["loja_id"], nome, whatsapp_formatado)
@@ -180,7 +180,7 @@ if vendedores_visiveis:
                 if total_ativos <= 1:
                     error_message("Nao pode remover o unico vendedor ativo. Adicione outro vendedor primeiro.")
                     continue
-            alterar_status_vendedor(row["id"], "removido")
+            alterar_status_vendedor(loja["loja_id"], row["id"], "removido")
             success_message(f"**{row['Nome']}** removido da fila")
         if not removidos.empty:
             st.rerun()
@@ -209,7 +209,7 @@ if vendedores_visiveis:
                     if total_ativos <= 1:
                         error_message(f"Nao pode desativar **{row['Nome']}** — unico vendedor ativo")
                         continue
-                alterar_status_vendedor(vid, novo_status)
+                alterar_status_vendedor(loja["loja_id"], vid, novo_status)
                 success_message(f"**{row['Nome']}** {'ativado' if novo_status == 'ativo' else 'inativado'}")
                 st.rerun()
 
@@ -234,7 +234,7 @@ if vendedores_visiveis:
                     continue
 
                 try:
-                    editar_vendedor(vid, novo_nome, whatsapp_formatado)
+                    editar_vendedor(loja["loja_id"], vid, novo_nome, whatsapp_formatado)
                     success_message(f"**{novo_nome}** atualizado!")
                     st.rerun()
                 except Exception as e:
