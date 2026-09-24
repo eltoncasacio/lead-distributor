@@ -10,6 +10,33 @@ Dashboard Web (Streamlit) de um sistema de distribuição de leads de WhatsApp p
 2. **[docs/specs/](docs/specs/)** — a spec relevante à sua tarefa (regras de negócio, operação, técnica).
 3. **[docs/adr/](docs/adr/)** — antes de propor mudar uma decisão arquitetural, veja se ela já foi tomada com um trade-off explícito.
 
+## Continuidade entre sessões — leia isto primeiro
+
+**Cada sessão de IA começa do zero.** Nada do que foi conversado antes vem junto: nem credenciais, nem decisões, nem o que já foi tentado. O usuário costuma lembrar de algo "que combinamos" — e o assistente não tem isso. **Se não está escrito em arquivo, não existe.**
+
+Por isso, antes de propor qualquer coisa:
+
+1. **Rode a auditoria** — `python3 auditoria_producao.py`. Em 5 segundos responde se o sistema está distribuindo, qual o ritmo de leads, se a fila está coerente e **se alguma origem parou de dar sinal**. É a foto do estado real, não do estado documentado.
+2. **Leia [docs/plano-multiloja.md](docs/plano-multiloja.md)** — o roteiro vigente, com as fases, o que já foi feito e o que falta. É onde as decisões de rumo ficam registradas.
+3. **Leia o [RUNBOOK do incidente NaPista](docs/historico/incidentes/2026-09-23-napista-leads-perdidos/RUNBOOK.md) e o [ACEITE](docs/historico/incidentes/2026-09-23-napista-leads-perdidos/ACEITE.md)** — o que foi aplicado em produção, com `versionId`, e principalmente **o que foi deixado sem testar de propósito**.
+
+### Ao terminar uma sessão que mudou algo
+
+Atualize o arquivo correspondente **na mesma sessão**, não "depois":
+
+| Mudou | Atualize |
+|---|---|
+| rumo, prioridade, fase | `docs/plano-multiloja.md` |
+| workflow n8n em produção | RUNBOOK do incidente (com `versionId` antes/depois) |
+| algo que ficou sem teste | `ACEITE.md`, dizendo **por que** não foi testado |
+| entendimento de como o sistema funciona | a spec em `docs/specs/` correspondente |
+
+Diagnóstico que se provou errado **não se apaga**: corrige-se com a data e o motivo. Foi assim que a conclusão "a NaPista cortou o e-mail" foi desfeita em 2026-09-23 — a versão errada continua no RUNBOOK, marcada como errada, porque saber que ela existiu evita refazer o mesmo caminho.
+
+### Credenciais
+
+Nenhuma credencial vive no repositório. O `.env` (fora do git) tem `SUPABASE_URL` e `SUPABASE_SERVICE_KEY`. Chave da API do n8n e do MCP são **coisas diferentes e não intercambiáveis** — o MCP do n8n só lê, não escreve workflow. Se precisar escrever no n8n, peça a chave da API pública ao dono; ela não está em lugar nenhum do projeto.
+
 ## Regra mais importante: não invente regras nem funcionalidades
 
 Este projeto já passou por um ciclo de deriva grave entre documentação e sistema real (ver [docs/historico/AUDITORIA_2026-09-11.md](docs/historico/AUDITORIA_2026-09-11.md)) — documentos afirmavam coisas que não eram mais verdade no código/banco. Para não repetir isso:
@@ -23,7 +50,7 @@ Este projeto já passou por um ciclo de deriva grave entre documentação e sist
 - Toda leitura/escrita ao Supabase passa por `utils/queries.py` — **exceção conhecida**: `pages/4_Leads.py` escreve direto (débito técnico registrado, não é padrão a seguir em código novo).
 - Autenticação é por código único por loja (sem contas individuais) — não assuma que existe conceito de "usuário logado" além da loja.
 - `vendedores.ordem_fila` e o drag-and-drop do Dashboard **não afetam** o round-robin real (que segue `criado_em`) — não trate essa coluna como fonte de verdade da fila.
-- Sem suíte de testes automatizada de verdade (`test_date_filters.py`/`validate_signatures.py` são scripts avulsos contra Supabase real, não testes de CI). Não assuma cobertura de testes ao alterar código.
+- **Existe suíte de testes, mas ela cobre uma coisa só**: `tests/` roda com pytest, sem rede, com um Supabase falso (`tests/fake_supabase.py`), e prova o **isolamento multi-loja** de `utils/queries.py` — que nenhuma escrita alcança outra loja, e que nenhuma função nova entra sem filtro de `loja_id`. Rode com `python3 -m pytest tests/ -q`. **Não há cobertura de mais nada**: páginas Streamlit, gráficos e filtros de data seguem sem teste. `test_date_filters.py` e `validate_signatures.py` continuam sendo scripts avulsos contra o Supabase real, não testes.
 
 ## Débito técnico conhecido (não corrigir por conta própria sem pedir)
 
@@ -36,6 +63,7 @@ source venv/bin/activate
 streamlit run Home.py              # rodar o Dashboard localmente
 python3 test_date_filters.py       # script de checagem de filtros de data (usa Supabase real)
 python3 validate_signatures.py     # valida assinaturas de funções de utils/queries.py
+python3 auditoria_producao.py      # foto do estado real de produção (somente leitura)
 ```
 
 Não há linter/formatter configurado no repositório hoje.
