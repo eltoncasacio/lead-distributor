@@ -67,7 +67,14 @@ O alarme por origem deixa de ser desejável e passa a ser condição de operaç�
 
 Hoje, se uma segunda loja entrar, os alertas dela saem pela instância Evolution da Renato Motors e vão para o número do dono dela. É um bug esperando o primeiro cliente.
 
-**Os 8 nós:** `Webhook`, `Webhook Webmotors`, `Montar Alerta`, `Enviar Alerta Conexão`, `Extrai Dados NaPista`, `Alerta Lead Nao Distribuido`, `Alerta Loja Nao Encontrada`, `Alerta NaPista Sem Telefone`.
+**Change-set levantado nó a nó em 2026-09-23: [dev/fase-a-tirar-hardcodes-n8n.md](dev/fase-a-tirar-hardcodes-n8n.md).** Ainda não aplicado — depende de 3 decisões listadas lá.
+
+Correções ao que estava escrito aqui:
+
+- São **14 nós** com valor fixo, não 8 — mas só **6** são hardcode de loja. Os números `551131361712`/`551130044558` em `Duplicado de Plataforma?`, `Filtro Msg Vazia`, `Verificar Origem` e `Telefone do Cliente?` identificam **a plataforma**, são iguais para qualquer loja e **ficam**.
+- **`Alerta Loja Nao Encontrada` e o alerta de conexão não têm contexto de loja** (rodam antes de a loja ser identificada, ou num ramo que desvia de `Normaliza Dados`). São alertas de **operador** — o número do dono neles não é bug. Sai a URL/instância/chave, não o destino.
+- **"Buscar o gerente pelo `loja_id`" pode não ser necessário**: `Identificar Loja` já traz `numero_whatsapp` e `Preparar Dados Loja` já expõe como `lojaNumero`. Se o número da loja servir de destino, o custo é zero nó novo.
+- **`Extrai Dados NaPista` não é mecânico.** O hardcode ali existe porque **e-mail não tem instância** — não há discriminador de loja no ramo do Gmail. Exige coluna `lojas.email_leads` + nó de consulta pelo cabeçalho `to`. Ver o change-set.
 
 > Três deles (`Alerta *`) foram criados em 2026-09-23 copiando o padrão hardcoded existente em vez de ler do banco como faz `Encaminhar ao Vendedor`. Foi decisão errada e é barata de corrigir.
 
@@ -91,7 +98,25 @@ Existe roteiro pronto em [dev/roteiro-loja-fake-multitenant.md](dev/roteiro-loja
 - [ ] Criar loja de teste e vendedores próprios
 - [ ] Simular leads chamando `distribuir_lead` por SQL
 - [ ] Entrar no Dashboard com o código da loja de teste
-- [ ] Revisar as 39 funções de `utils/queries.py` conferindo `.eq("loja_id", loja_id)` em **todas**
+- [x] Revisar as 39 funções de `utils/queries.py` conferindo `.eq("loja_id", loja_id)` em **todas** — feito em 2026-09-23, ver abaixo
+
+#### Resultado da revisão das 39 funções (2026-09-23)
+
+**5 funções corrigidas.** Duas eram furo real, três eram armadilha latente:
+
+| Função | Era | Virou |
+|---|---|---|
+| `editar_vendedor` | recebia só `vendedor_id`, `UPDATE ... WHERE id = ?` — **sem nenhuma amarra com a loja** | recebe `loja_id`, filtra por ele |
+| `alterar_status_vendedor` | idem; chegava a **ler** o `loja_id` da linha, só não conferia | recebe `loja_id`, filtra na leitura e na escrita |
+| `editar_gerente` | `loja_id: str = None`, filtro dentro de `if loja_id:` | `loja_id` obrigatório, filtro incondicional |
+| `desativar_gerente` | idem (sem chamador hoje) | idem |
+| `deletar_gerente` | idem — e é **DELETE de verdade**, o pior caso | idem |
+
+As de gerente estavam seguras na prática (os dois chamadores vivos passavam o `loja_id`), mas a guarda era **opt-in**: bastava um chamador novo esquecer o último argumento para o filtro sumir em silêncio. Numa base com duas lojas, `deletar_gerente` sem `loja_id` apaga gerente de qualquer loja.
+
+**4 funções aparecem como suspeitas em varredura automática e não são** — registrado aqui para não serem "corrigidas" de novo por engano: `atualizar_proximo_vendedor_da_loja`, `get_limite_leads` (filtram a tabela `lojas` por `.eq("id", loja_id)`, que é a PK da própria loja), `obter_proximo_vendedor` (a leitura sem filtro pega só o `ordem_fila` do ponteiro da própria loja, e o resultado é casado contra uma lista já filtrada) e `reordenar_vendedores` (valida a posse de cada vendedor e levanta exceção — **é o padrão a copiar**).
+
+> **Regra para o front novo (Fase D)**: `loja_id` nunca é parâmetro opcional, e toda escrita por PK leva o filtro de loja junto. Os dois furos existiam exatamente porque a função atualizava por `id` e confiava em quem chamava.
 
 **Critérios de aceite**
 - [ ] A loja de teste não vê nenhum lead, vendedor, gerente, atividade ou mensagem da Renato Motors — e vice-versa
@@ -123,10 +148,10 @@ Estas duas andam juntas: cadastrar sem autenticar direito não faz sentido.
 
 Só depois de A, B e C. O front herda o modelo de autenticação e de isolamento — construir antes é refazer depois.
 
-Base de referência já escrita: [specs/tecnica/06-migracao-frontend-nextjs.md](specs/tecnica/06-migracao-frontend-nextjs.md). **Está desatualizada**: descreve 4 páginas e ~30 funções; hoje são 5 páginas (Triagem entrou) e 39 funções.
+Base de referência: [specs/tecnica/06-migracao-frontend-nextjs.md](specs/tecnica/06-migracao-frontend-nextjs.md), **atualizado em 2026-09-23** — cobre as 5 páginas, as 39 funções e os 3 pontos onde o próprio Dashboard chama RPC (`comando_status`, `promover_mensagem_para_lead`, `arquivar_mensagem`), o que a versão anterior do spec negava.
 
 **Checklist**
-- [ ] Atualizar o spec 06 com a Triagem e as 4 RPCs novas
+- [x] Atualizar o spec 06 com a Triagem e as RPCs que o Dashboard chama
 - [ ] `service_role` só no servidor, nunca no navegador — igual hoje
 - [ ] Migrar tela por tela, rodando ao lado do Streamlit
 - [ ] Ordem sugerida: Gerentes → Vendedores → Triagem → Leads → Dashboard (o Dashboard tem gráficos e drag-and-drop, deixa por último)

@@ -16,7 +16,7 @@ Existem outras versões no mesmo ambiente n8n, todas **arquivadas** (não ativas
 1. **Webhook** (nó `n8n-nodes-base.webhook`) — recebe todos os eventos da instância Evolution API da loja (mensagens e eventos de conexão).
 2. **Webhook Mobiauto** — endpoint HTTP dedicado só para leads da Mobiauto.
 3. **Webhook Webmotors** — endpoint HTTP dedicado só para leads da Webmotors. **Não documentado em nenhum lugar antes desta reescrita** — a documentação de produto antiga chegava a afirmar que não havia integração direta com portais.
-4. **Gmail Trigger** — lê e-mails recebidos; um filtro (`Origem NaPista`, checa se o remetente contém "NaPista") separa e-mails da NaPista para extração.
+4. **Gmail Trigger** — lê e-mails recebidos (filtro `from:@napista.com.br`, poll a cada minuto); um filtro (`Origem NaPista`, checa se o remetente contém "NaPista") separa e-mails da NaPista para extração. ⚠️ **Desde ~14/08/2026 este trigger não recebe nada**: a NaPista passou a entregar os leads em `comercialrenatomotors@hotmail.com` (Outlook), fora do alcance de um trigger Gmail — ver [incidente 2026-09-23](../../historico/incidentes/2026-09-23-napista-leads-perdidos/RUNBOOK.md#canal-de-e-mail-caixa-errada-não-canal-cortado).
 
 ## Grafo principal (mensagem de WhatsApp)
 

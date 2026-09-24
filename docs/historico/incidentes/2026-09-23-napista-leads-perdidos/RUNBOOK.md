@@ -14,7 +14,56 @@ Três defeitos somados, todos na camada de entrada:
 2. **`Duplicado de Plataforma?` e `Vendedor Encontrado?` voltam ao `Loop Over Items` sem avisar ninguém.** O lead some e a execução segue `success`.
 3. **`Separar Leads NaPista` lê `templateMessage.hydratedTemplate.hydratedContentText`**, caminho `undefined` em `placeholderMessage` (9 de 14 mensagens, efeito de 62 quedas de sessão da Evolution em 14 dias). O nó tem `onError: continueRegularOutput`, então emite o **objeto de erro como dado** para o resto do fluxo.
 
-Agravante independente: a NaPista removeu o telefone do cliente do template novo e cortou o canal de e-mail em 2026-08-14. Sem telefone não há para quem distribuir — isso é comercial, não tem correção em código.
+Agravante independente, **no template de WhatsApp**: a NaPista trocou o template repassado por WhatsApp por um sem telefone do cliente, só com link para o portal. Por esse canal, sem telefone não há para quem distribuir.
+
+> ⚠️ **Correção de diagnóstico (2026-09-23, noite).** A versão anterior deste runbook afirmava que a NaPista *"cortou o canal de e-mail em 2026-08-14"* e que nenhum canal automatizado trazia mais o telefone. **As duas afirmações estão erradas.** Ver [Canal de e-mail: caixa errada, não canal cortado](#canal-de-e-mail-caixa-errada-não-canal-cortado).
+
+## Canal de e-mail: caixa errada, não canal cortado
+
+Descoberto em **2026-09-23 à noite**, por vídeo do gerente mostrando a caixa de entrada ao vivo.
+
+**O e-mail da NaPista nunca parou.** Ele passou a ser entregue em **`comercialrenatomotors@hotmail.com`** (Outlook/Hotmail), enquanto o `Gmail Trigger` do n8n lê uma caixa **Gmail** com o filtro `from:@napista.com.br`. Um Gmail Trigger não alcança uma caixa Hotmail — por isso o n8n não vê nenhum e-mail desde 14/08. **Não era spam.**
+
+Evidência no vídeo (busca por "napista" em todas as pastas da conta Hotmail):
+
+- vários leads na **Caixa de Entrada**, nenhum no Lixo Eletrônico — o mais recente em **23/09 às 18:11** (Ezequiel Batista dos Santos);
+- um e-mail *"Redefina sua senha | NaPista"* de **17/08/2026** já nessa caixa. Como o fluxo para o Gmail secou em **14/08**, a janela 14–17/08 é quando o e-mail de notificação da conta NaPista passou a ser o Hotmail.
+
+**O telefone do cliente continua vindo por e-mail.** O corpo do e-mail aberto no vídeo traz `Dados do cliente` com nome, telefone, e-mail, CPF, botão "Conversar via whatsapp", `Mensagem` e `Veículo de interesse` — exatamente o formato que o nó `Extrai Dados NaPista` em produção já parseia. **Nenhuma mudança de código é necessária** para voltar a receber esses leads com telefone.
+
+### Verificação na tela do n8n (2026-09-23, noite)
+
+Confirmado pela UI, com `Fetch Test Event` no nó `Gmail Trigger` (executa **só o nó**, não o workflow):
+
+- **A conta é `leadsrenatomotors@gmail.com`** — `"to": "To: leadsrenatomotors@gmail.com"` e `"delivered-to": "leadsrenatomotors@gmail.com"` no cabeçalho do item retornado.
+- **O último e-mail da NaPista nessa caixa é de 14/08/2026**, `Fri, 14 Aug 2026 13:09:52 +0000` (10:09 BRT). Assunto: *"F. R. (cliente) está interessado na sua oferta."*, de `NaPista <noreply@napista.com.br>` via `mandrillapp.com`. Ou seja: o corte no Gmail é exatamente 14/08, e desde então **zero**.
+- O item ainda está com labels `INBOX`, `UNREAD`, `CATEGORY_PROMOTIONS`. A aba Promoções **não** atrapalha o trigger (ele busca por query, não por aba) — registrado só para não virar suspeita falsa depois.
+- Configuração do nó: `Search: from:@napista.com.br`, `Every Minute`, `Message Received`, `Simplify` desligado.
+
+A credencial (`Gmail account`, Gmail OAuth2) **não exibe o endereço em nenhuma aba da UI** — só "Account connected". O único jeito de ler a conta é pelo cabeçalho de um item retornado pelo trigger.
+
+⚠️ A retenção de execuções desta instância cobre poucos dias (em 23/09 a lista mais antiga era de **21/09**). Não adianta procurar execução de agosto.
+
+### Opções de correção
+
+| | O que fazer | Custo | Risco |
+|---|---|---|---|
+| **A** (recomendada) | Na Área do lojista da NaPista, apontar o e-mail de notificação de volta para o Gmail que o n8n lê | nenhum código | baixo |
+| **B** | Regra de encaminhamento automático Hotmail → Gmail | nenhum código | o encaminhamento do Outlook costuma reescrever o `From`, quebrando o filtro `from:@napista.com.br` |
+| **C** | Trocar o `Gmail Trigger` por um trigger Microsoft Outlook na conta Hotmail | OAuth novo + religar o ramo | médio |
+
+**Decisão do dono (2026-09-23, noite): tentar a A primeiro.**
+
+Levantamento feito para a C, caso a A não seja poss­vel:
+- A instância tem **8 credenciais, nenhuma da Microsoft** — começaria do zero.
+- É **self-hosted**, então OAuth exige app registrado pelo dono (a credencial Gmail já usa Client ID próprio `463630093033-...`). Para Outlook: registro no Azure/Entra ID, redirect `https://n8n.yavoh.cloud/rest/oauth2-credential/callback`, escopos `Mail.Read` + `offline_access`.
+- **Dois nós quebram** com o formato do Outlook: `Origem NaPista` compara `$json.from.value[0].name` (no Outlook é `from.emailAddress.name`), e `Extrai Dados NaPista` lê `body` como string (no Outlook é objeto `{contentType, content}` — precisa `body.content`).
+- O nó IMAP genérico dispensaria o Azure, mas a Microsoft desligou autenticação básica (senha) para IMAP em contas pessoais Outlook.com — **não verificado nesta conta**, e testar custa ~5 min.
+
+### Recuperação manual
+
+Os leads que caíram no Hotmail desde 14/08 **nunca viraram lead** no sistema. Cada e-mail contém nome e telefone, então são recuperáveis à mão. Volume ainda não contado.
+
 
 ## Estado da aplicação
 
