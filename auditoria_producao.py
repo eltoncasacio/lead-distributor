@@ -94,6 +94,15 @@ elif prox:
 else:
     print("    ~ ponteiro nulo (cai no primeiro ativo)")
 
+# distribuir_lead() so filtra por status='ativo' — nao checa numero_whatsapp.
+# Um ativo sem numero vai entrar no rodizio, o lead e' criado normalmente,
+# e o encaminhamento no n8n falha calado (mesmo padrao do incidente NaPista).
+sem_whatsapp = [v for v in ativos if not v.get("numero_whatsapp")]
+if sem_whatsapp:
+    print("    !! %d vendedor(es) ATIVO(S) sem numero_whatsapp — recebe lead e o cliente fica sem retorno:" % len(sem_whatsapp))
+    for v in sem_whatsapp:
+        print("       - %s (id=%s)" % (v.get("nome"), v["id"]))
+
 # ---------- 3. leads: volume e ritmo ----------
 total = cont("leads", loja_id=LOJA)
 d30 = paginado("leads", "id,criado_em,origem,vendedor_id,status_lead",

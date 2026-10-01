@@ -130,6 +130,16 @@ Estas duas andam juntas: cadastrar sem autenticar direito não faz sentido.
 
 **Decisão de produto pendente:** senha por loja (como hoje) ou login por pessoa? Login por pessoa resolve "quem fez o quê" e permite cortar o acesso de quem saiu, mas é mais para construir e para a loja administrar.
 
+> **A Fase C mudou de forma em 2026-09-25.** Em vez de um painel de administração, a proposta passa a ser estender o fluxo de comandos que já existe no WhatsApp: [specs/tecnica/08-comandos-whatsapp.md](specs/tecnica/08-comandos-whatsapp.md). Nada implementado ainda.
+>
+> O que isso muda no escopo desta fase:
+>
+> - **A administração da loja** (vendedor, gerente) sai do painel e vai para comando por WhatsApp — canal que já é **melhor autenticado** que o Dashboard, porque o número é verificado pelo WhatsApp e o `loja_id` vem da instância, não de nada que o usuário digita.
+> - **A administração do sistema** (criar loja, gerar `codigo_acesso`) vira **processo manual do dono**, por decisão dele. Não desaparece — vira trabalho manual com limite conhecido: sem rastro de auditoria e sem rotação de código.
+> - **"Quem fez o quê"**, a dúvida de produto acima, fica resolvido de graça pelo canal de comando: o remetente é uma pessoa identificada, não um código de loja compartilhado.
+>
+> **Achado que vira tarefa desta fase:** `comando_leads` e `comando_status` recebem só `p_loja_id`, então não sabem quem perguntou — e `Não É Lead` deixa vendedor e gerente passarem igual. Na prática, **hoje um vendedor que digita `leads` vê os leads da loja inteira.** Correção é em SQL, ver o spec 08.
+
 **Checklist**
 - [ ] Sessão em cookie assinado, com expiração — o `loja_id` sai da URL
 - [ ] Logout invalida de verdade
@@ -170,9 +180,20 @@ Base de referência: [specs/tecnica/06-migracao-frontend-nextjs.md](specs/tecnic
 - [ ] Alarme quando uma origem chega e não vira lead (>50% em 24h)
 - [ ] Alarme quando uma origem fica calada além do esperado para ela
 - [ ] Tabela "Saúde das origens" no painel
+- [ ] Alarme + desativação automática de vendedor ativo sem `numero_whatsapp` (ver abaixo)
 
 **Critério de aceite**
 - [ ] Simular o incidente NaPista e confirmar que o alarme dispara em ≤24h
+
+**Pendente (2026-10-01): vendedor ativo sem WhatsApp — detectar, avisar, desativar**
+
+`distribuir_lead` (SQL) só filtra por `status = 'ativo'`, não checa `numero_whatsapp IS NOT NULL` ([FIX_distribuir_lead.sql](historico/incidentes/2026-08-31-race-condition/FIX_distribuir_lead.sql)). Um vendedor ativo sem número entra no rodízio normalmente, o lead é criado, e o encaminhamento no n8n falha calado — mesmo padrão silencioso do incidente NaPista, só que por cadastro incompleto em vez de mudança de infra externa.
+
+- [x] Detecção manual: `auditoria_producao.py` já alerta na seção [2] quando algum ativo não tem `numero_whatsapp` (adicionado 2026-10-01, achado ao checar o vendedor André).
+- [ ] Aviso automático ao gerente por WhatsApp quando isso acontecer.
+- [ ] Desativação automática do vendedor nesse caso (a função `alterar_status_vendedor` já faz a parte de desativar; falta o gatilho automático).
+
+**Por que não foi além do script manual**: não existe hoje nenhum envio de WhatsApp saindo deste repo — isso é todo feito pelo n8n. Para automatizar o aviso + desativação seria necessário mexer no workflow n8n (exige a chave de API pública do n8n, que só o dono tem — ver seção de Credenciais no [CLAUDE.md](../CLAUDE.md)) ou criar um script que roda via cron e grava direto no Supabase. Decisão de arquitetura (cron fora do repo vs. nó novo no n8n) fica para quando essa fase for priorizada.
 
 ### Fase F — plano e cobrança (adiável)
 
