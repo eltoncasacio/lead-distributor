@@ -415,7 +415,9 @@ BEGIN
   PERFORM pg_temp.eq(r->>'motivo', 'limite_diario', 'limite atingido');
   PERFORM pg_temp.eq((SELECT chamadas FROM ia_uso WHERE remetente_chave = chave_telefone(G))::text, '3', 'contador para no limite');
   -- limite e por pessoa: outro gerente ainda pode
+  INSERT INTO gerentes (loja_id, nome, numero_whatsapp) VALUES (A::uuid, 'Gerente Limite', '5519900000009');
   PERFORM pg_temp.eq((reservar_ia(A::uuid, '5519900000009', 'frase', 3)->>'usar'), 'true', 'outra pessoa nao e afetada');
+  DELETE FROM gerentes WHERE numero_whatsapp = '5519900000009';
   -- e por dia: ontem nao conta
   UPDATE ia_uso SET dia = dia - 1 WHERE remetente_chave = chave_telefone(G);
   PERFORM pg_temp.eq((reservar_ia(A::uuid, G, 'frase nova', 3)->>'usar'), 'true', 'dia novo zera');
@@ -433,6 +435,40 @@ BEGIN
     RAISE EXCEPTION 'FALHOU: anon executou reservar_ia';
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   RESET ROLE;
+END $$;
+
+-- ---------------------------------------------------------------- so ativo fala com o sistema
+DO $$
+DECLARE A text := '11111111-1111-1111-1111-111111111111'; r json;
+BEGIN
+  INSERT INTO vendedores (loja_id, nome, numero_whatsapp, status, ordem_fila) VALUES
+    (A::uuid, 'Pausado X', '5519977700001', 'inativo', 70),
+    (A::uuid, 'Removido X', '5519977700002', 'removido', 71),
+    (A::uuid, 'Ativo X', '5519977700003', 'ativo', 72);
+  INSERT INTO gerentes (loja_id, nome, numero_whatsapp, ativo) VALUES (A::uuid, 'Gerente Off', '5519977700004', false);
+  -- vendedor pausado: nada
+  r := executar_comando(A::uuid, '5519977700001', 'meus leads');
+  PERFORM pg_temp.eq(r->>'acao', 'ignorado', 'pausado ignorado');
+  PERFORM pg_temp.ok(r->>'resposta' IS NULL, 'pausado sem resposta');
+  PERFORM pg_temp.eq(executar_comando(A::uuid, '5519977700001', 'status')->>'acao', 'ignorado', 'pausado status ignorado');
+  PERFORM pg_temp.eq(executar_comando(A::uuid, '5519977700001', 'sim')->>'acao', 'ignorado', 'pausado sim ignorado');
+  PERFORM pg_temp.eq(executar_comando_ia(A::uuid, '5519977700001', 'meus leads', '{"acao":"meus_leads"}'::jsonb)->>'acao', 'ignorado', 'pausado via IA ignorado');
+  PERFORM pg_temp.eq(executar_comando_ia(A::uuid, '5519977700001', 'hm', '{"acao":"esclarecer","pergunta":"O que?"}'::jsonb)->>'acao', 'ignorado', 'pausado nao recebe pergunta');
+  PERFORM pg_temp.eq(reservar_ia(A::uuid, '5519977700001', 'quais meus leads')->>'motivo', 'sem_permissao', 'pausado nao gasta IA');
+  -- removido e gerente desativado: nada
+  PERFORM pg_temp.eq(executar_comando(A::uuid, '5519977700002', 'meus leads')->>'acao', 'ignorado', 'removido ignorado');
+  PERFORM pg_temp.eq(executar_comando(A::uuid, '5519977700004', 'listar vendedores')->>'acao', 'ignorado', 'gerente desativado ignorado');
+  PERFORM pg_temp.eq(reservar_ia(A::uuid, '5519977700004', 'me mostra a equipe')->>'motivo', 'sem_permissao', 'gerente off nao gasta IA');
+  -- ativo continua funcionando
+  PERFORM pg_temp.eq(executar_comando(A::uuid, '5519977700003', 'meus leads')->>'papel', 'vendedor', 'ativo funciona');
+  PERFORM pg_temp.eq(reservar_ia(A::uuid, '5519977700003', 'tem lead pra mim?')->>'usar', 'true', 'ativo usa IA');
+  -- gerente que tambem e vendedor pausado continua gerente
+  INSERT INTO gerentes (loja_id, nome, numero_whatsapp) VALUES (A::uuid, 'Pausado X', '5519977700001');
+  PERFORM pg_temp.eq(executar_comando(A::uuid, '5519977700001', 'listar vendedores')->>'papel', 'gerente', 'gerente+pausado = gerente');
+  PERFORM pg_temp.eq(executar_comando(A::uuid, '5519977700001', 'meus leads')->>'acao', 'info', 'gerente+pausado ve os proprios leads');
+  DELETE FROM gerentes WHERE numero_whatsapp IN ('5519977700001', '5519977700004');
+  DELETE FROM vendedores WHERE numero_whatsapp LIKE '55199777000%';
+  DELETE FROM ia_uso;
 END $$;
 
 SELECT 'TODOS OS TESTES PASSARAM' AS resultado;

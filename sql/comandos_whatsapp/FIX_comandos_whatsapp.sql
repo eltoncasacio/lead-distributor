@@ -181,9 +181,13 @@ BEGIN
      AND public.chave_telefone(numero_whatsapp) = v_chave
    LIMIT 1;
 
+  -- Regra do dono (2026-10-10): so gerente ativo ou vendedor ATIVO fala com o
+  -- sistema. Vendedor pausado ou removido nao recebe resposta nenhuma.
+  -- (O registro de vendedor pausado continua servindo para o "meus leads" de
+  -- quem tambem e gerente.)
   IF v_ger.id IS NOT NULL THEN
     v_papel := 'gerente';  v_quem := v_ger.nome;
-  ELSIF v_vend.id IS NOT NULL THEN
+  ELSIF v_vend.id IS NOT NULL AND v_vend.status = 'ativo' THEN
     v_papel := 'vendedor'; v_quem := v_vend.nome;
   ELSE
     RETURN public._cmd_resp('desconhecido', 'ignorado', NULL);
@@ -691,6 +695,13 @@ DECLARE
 BEGIN
   IF p_loja_id IS NULL OR v_chave IS NULL OR v_txt = '' THEN
     RETURN json_build_object('usar', false, 'motivo', 'sem_remetente_ou_texto');
+  END IF;
+  -- So gerente ativo ou vendedor ativo gasta IA.
+  IF NOT EXISTS (SELECT 1 FROM public.gerentes WHERE loja_id = p_loja_id AND ativo
+                    AND public.chave_telefone(numero_whatsapp) = v_chave)
+     AND NOT EXISTS (SELECT 1 FROM public.vendedores WHERE loja_id = p_loja_id AND status = 'ativo'
+                    AND public.chave_telefone(numero_whatsapp) = v_chave) THEN
+    RETURN json_build_object('usar', false, 'motivo', 'sem_permissao');
   END IF;
   IF v_txt IN ('menu', 'ajuda', 'help', 'status', 'leads', 'meus leads', 'listar vendedores',
                'sim', 's', 'nao', 'n', 'ok', 'pode', 'confirma', 'cancela', 'cancelar')
