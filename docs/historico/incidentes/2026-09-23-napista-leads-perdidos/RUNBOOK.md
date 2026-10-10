@@ -250,7 +250,7 @@ Script: [`docs/dev/fase-a/aplicar_comandos_n8n.py`](../../../dev/fase-a/aplicar_
 
 **O nó `Switch` não é caminho de comando:** fica no ramo de lead e responde "Acessar leads" ao próprio iCarros quando chega template com esse botão, para liberar o lead. Fica como está.
 
-**Gerentes em 10/10:** Renato, Elton (número trocado de `…6219` para `…7453`, o mesmo dos alertas) e `clickbyjota` (`…0204`, adicionado a pedido do dono). Mensagens desses números viram comando, não lead.
+**Gerentes em 10/10 (noite):** Renato (`…2446`), Elton (`…7453`, trocado de `…6219`; o mesmo número dos alertas), André (`…7447`, adicionado — continua também como vendedor pausado; o papel de gerente prevalece) e Juan (`…0204`, adicionado como `clickbyjota` e renomeado). Mensagens desses números viram comando, não lead.
 
 ## IA nos comandos por WhatsApp (2026-10-10, fim da tarde)
 
