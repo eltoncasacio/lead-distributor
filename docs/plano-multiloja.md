@@ -95,10 +95,26 @@ Correções ao que estava escrito aqui:
 Existe roteiro pronto em [dev/roteiro-loja-fake-multitenant.md](dev/roteiro-loja-fake-multitenant.md).
 
 **Checklist**
-- [ ] Criar loja de teste e vendedores próprios
-- [ ] Simular leads chamando `distribuir_lead` por SQL
-- [ ] Entrar no Dashboard com o código da loja de teste
+- [x] Criar loja de teste e vendedores próprios (10/10, dentro de transação desfeita — ver abaixo)
+- [x] Simular leads chamando `distribuir_lead` por SQL
+- [ ] ~~Entrar no Dashboard com o código da loja de teste~~ — Streamlit fora do plano (decisão de 10/10)
 - [x] Revisar as 39 funções de `utils/queries.py` conferindo `.eq("loja_id", loja_id)` em **todas** — feito em 2026-09-23, ver abaixo
+
+#### Resultado da prova de isolamento (2026-10-10)
+
+`sql/fase_b/teste_isolamento.sql`, rodado **contra o banco de produção** por `sql/fase_b/rodar_teste_isolamento.py`, dentro de um bloco que sempre termina desfeito (nada sobra — conferido depois). **26 verificações, todas OK:**
+
+- **Distribuição:** 6 leads na loja de teste foram só para os 3 vendedores dela, em rodízio (T1, T2, Giu, T1, T2, Giu); cliente que já é da Renato Motors, escrevendo para a loja de teste, **não** foi amarrado ao vendedor da RM.
+- **Quem manda:** `identificar_remetente` devolve a loja certa pelo par instância+número; o mesmo número de gerente nas duas lojas é reconhecido em cada uma; vendedor de uma loja é "cliente" na outra.
+- **Comandos:** `listar vendedores` só mostra a própria loja; `pausar Japa` na loja de teste não acha o Japa da RM; `pausar Giu` na loja de teste mira a Giu **dela** (mesmo nome, outra loja); "sim" mandado na RM não confirma pendência da loja de teste; a pausa não tocou a Giu da RM.
+- **Vendedor:** "meus leads" traz só os dele; vendedor de uma loja é ignorado pela outra.
+- **Legado do gerente:** `comando_status` e `comando_leads` só com dados da loja.
+- **IA:** contador de uso separado por loja.
+- **Renato Motors intacta:** ponteiro da fila, leads (1.299), atividades (1.403), vendedores, pendências e contador de IA iguais antes e depois; nenhum lead do banco inteiro com vendedor de outra loja.
+
+**Não coberto (fica para a loja real):** segunda instância Evolution recebendo WhatsApp de verdade pelo n8n; ramo de e-mail da NaPista (`Extrai Dados NaPista` ainda tem a RM fixa).
+
+**Achado lateral:** vendedores criados no mesmo instante (mesma transação) travam o rodízio, porque ele ordena por `criado_em`. Apareceu só no teste; na operação cada vendedor é cadastrado num momento (o comando `inserir` insere um por vez). Registrado, não corrigido — `distribuir_lead` não se mexe sem motivo (ADR 0001).
 
 #### Resultado da revisão das 39 funções (2026-09-23)
 

@@ -1,3 +1,5 @@
+> **Substituído em 2026-10-10** por `sql/fase_b/teste_isolamento.sql` (roda em produção dentro de transação desfeita, sem deixar resto, e cobre comandos/IA). Este roteiro era para o Streamlit, que saiu do plano, e tem um erro: `numero_whatsapp` **não** é único no banco inteiro — o schema real é `UNIQUE (loja_id, numero_whatsapp)`.
+
 # Roteiro: criar uma loja fake para testar isolamento multi-tenant
 
 > Verificado contra o schema real do Supabase em 2026-09-11 (ver [specs/tecnica/02-modelo-de-dados.md](../specs/tecnica/02-modelo-de-dados.md)). Rode os comandos abaixo você mesmo no SQL Editor do Supabase (produção) — nenhum destes INSERTs foi executado por mim.
