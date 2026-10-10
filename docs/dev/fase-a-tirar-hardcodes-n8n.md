@@ -2,7 +2,7 @@
 
 > Change-set para a Fase A do [plano-multiloja](../plano-multiloja.md). Levantado em 2026-09-23 contra o workflow real `Renato Motors Amarrar Lead` (`Qj200sqS9544ao3d`, 67 nós), lendo os nós um a um — não inferido da documentação.
 >
-> **Ainda não aplicado.** Três pontos precisam de decisão do dono antes (seção "Decisões pendentes").
+> **Aplicado em 2026-10-10 (A1 + A2), exceto `Extrai Dados NaPista`.** Decisões: (1) destino dos alertas de lead = número do dono (opção c); (2) `Extrai Dados NaPista` fica para a loja 2; (3) aplicado pela API pública com scripts em `docs/dev/fase-a/`. `Alerta Loja Nao Encontrada` virou e-mail (pela instância da mensagem não daria: é a instância desconhecida). Detalhes e `versionId` no RUNBOOK do incidente NaPista.
 
 ## O que o plano dizia, e o que é de fato
 

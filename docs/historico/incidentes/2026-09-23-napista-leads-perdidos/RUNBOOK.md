@@ -288,6 +288,19 @@ Script: [`docs/dev/fase-a/aplicar_alerta_email_n8n.py`](../../../dev/fase-a/apli
 
 **Limite conhecido:** uma queda que volta e cai de novo dentro de 5 min pode gerar mais de um e-mail (sem deduplicação).
 
+## Fase A2 — alertas sem Renato Motors fixa (2026-10-10, noite)
+
+| Mudança | `versionId` | Script |
+|---|---|---|
+| `Alerta Lead Nao Distribuido` e `Alerta NaPista Sem Telefone` (desativado) leem URL/instância/chave de `Normaliza Dados` (destino segue o dono, decisão dele); `Alerta Loja Nao Encontrada` virou **e-mail**; `Montar Alerta` e `Enviar Alerta Conexão` (código morto) removidos | `c327145a` → `9e22f018` | `docs/dev/fase-a/aplicar_fase_a2_hardcodes_n8n.py` |
+| `Identificar Loja` com `alwaysOutputData` — **o alerta "Loja não encontrada" nunca disparava**: com instância desconhecida o n8n parava em `Identificar Loja` (lista vazia) | `9e22f018` → `2931765f` | `docs/dev/fase-a/aplicar_loja_nao_encontrada_n8n.py` |
+
+**Testado:** mensagem simulada de instância inexistente — `9217` (antes da correção) parou em `Identificar Loja`; `9218` chegou ao alerta, **e-mail enviado**, nada registrado nem distribuído. Mensagens reais depois da mudança (`9190`–`9216`) sem erro. **Não testado:** `Alerta Lead Nao Distribuido` com a instância dinâmica (exige um lead sem vendedor); usa as mesmas expressões de `Encaminhar ao Vendedor`, que funciona.
+
+**Chave da Evolution fixa agora só em `Extrai Dados NaPista`** (ramo de e-mail) — fica para a loja 2 (exige `lojas.email_leads`).
+
+**Achado no teste — fotos viravam menus:** o gerente Renato mandou um álbum de 27 fotos e recebeu 27 menus (`9190`–`9216`); mensagem sem texto era tratada como `menu`. Corrigido no SQL: sem texto, silêncio (só no caminho de comandos; cliente não passa por ele).
+
 ## Arquivos
 
 - `FIX_mensagens_recebidas.sql` / `ROLLBACK_mensagens_recebidas.sql` — Fase 3. **Não aplicados**: DDL não passa pela PostgREST, tem de ser rodado no SQL Editor do Supabase. Não tocam `leads` nem `distribuir_lead`.

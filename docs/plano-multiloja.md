@@ -79,9 +79,9 @@ Correções ao que estava escrito aqui:
 > Três deles (`Alerta *`) foram criados em 2026-09-23 copiando o padrão hardcoded existente em vez de ler do banco como faz `Encaminhar ao Vendedor`. Foi decisão errada e é barata de corrigir.
 
 **Checklist**
-- [ ] Alertas usam `$('Normaliza Dados').item.json.evolutionServerUrl` e `.instancia`, como `Encaminhar ao Vendedor`
-- [ ] Destino do alerta vem do gerente da loja, não de número fixo — exige buscar o gerente pelo `loja_id` (hoje nenhum nó faz isso)
-- [ ] `Extrai Dados NaPista` deixa de ter `lojaId` fixo
+- [x] Alertas usam `$('Normaliza Dados').item.json.evolutionServerUrl` e `.instancia`, como `Encaminhar ao Vendedor` (10/10)
+- [ ] Destino do alerta vem do gerente da loja, não de número fixo — **adiado por decisão do dono (10/10): alertas seguem para ele**
+- [ ] `Extrai Dados NaPista` deixa de ter `lojaId` fixo — **fica para a loja 2**
 - [ ] O nome do path do webhook (`renato-motors`) pode ficar — é só um nome; `Identificar Loja` resolve pela instância
 
 **Critérios de aceite**
