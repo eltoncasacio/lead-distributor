@@ -214,15 +214,32 @@ Aplicado em 2026-10-10 10:58 BRT, fora da janela 03h–05h, **por decisão expl�
 
 **Verificado depois:** execução `9155` (10:59 BRT, comando `leads` de gerente) passou por `Identificar Loja`, `Identificar Remetente` e `Buscar Leads` com a credencial, sucesso, chave ausente dos dados. **Ainda não exercitados:** `Distribuir Lead`, `Registrar Mensagem`, `Buscar Mensagens Prontas` e os ramos Mobiauto/Webmotors — mesma configuração, conferir no primeiro lead real (ver ACEITE).
 
-**Rollback:** `python3 aplicar_a1_credencial_supabase.py --reverter` regrava o snapshot salvo em `.n8n_backups/` (fora do git, contém a chave). Só funciona enquanto a chave antiga não for revogada.
+**Confirmado com leads reais:** execuções `9162`–`9164`, `9168` e `9169` (10/10, 11:27–11:40 BRT) passaram por `Distribuir Lead` e `Registrar Mensagem` com a credencial, sucesso, chave ausente dos dados.
+
+**Rollback:** `python3 aplicar_a1_credencial_supabase.py --reverter` regrava o snapshot salvo em `.n8n_backups/` (fora do git, contém a chave). Só funciona enquanto a chave antiga não for revogada. **Desatualizado desde 10/10 11:40:** o workflow foi editado depois pela tela (`81c399b7` → `80947913`, autor não registrado) e de novo para desligar o alerta abaixo — reverter para o snapshot da A1 desfaria essas edições. Para voltar, usar o snapshot mais recente em `.n8n_backups/`.
 
 **Ainda falta:** (1) rotacionar a chave — atualizar a credencial no n8n e o `.env` do Dashboard, depois revogar a antiga; (2) as execuções anteriores a esta versão continuam com a chave gravada nos dados — perde o valor com a rotação.
+
+## Alerta "Lead NaPista sem telefone" desligado (2026-10-10)
+
+**Decisão do dono, 2026-10-10:** esse alerta não vai mais para ninguém. Nó `Alerta NaPista Sem Telefone` marcado como desativado (`disabled: true`), não apagado — religar é desmarcar.
+
+| | `versionId` |
+|---|---|
+| antes | `80947913-aedf-421c-86f7-e12a2f990046` |
+| depois | `5b786a18-b4e0-4f9b-821e-2efa106a7306` |
+
+**O que continua acontecendo:** o mesmo ramo também leva a `Registrar Mensagem`, que segue ligado. A mensagem do NaPista sem telefone continua gravada em `mensagens_recebidas` e aparece na **Triagem** — só deixa de haver aviso por WhatsApp. Na prática esse alerta disparava sobretudo com `placeholderMessage` (sem conteúdo, ver complemento de 05/10), em que não havia nada útil para mandar.
+
+**Consequência a saber:** sem o alerta, um lead do NaPista sem telefone só é visto por quem abrir a Triagem. O alerta `Lead nao distribuido` não foi alterado.
+
+Snapshot anterior: `.n8n_backups/workflow_Qj200sqS9544ao3d_80947913-…_20261010-114042.json`.
 
 ## Arquivos
 
 - `FIX_mensagens_recebidas.sql` / `ROLLBACK_mensagens_recebidas.sql` — Fase 3. **Não aplicados**: DDL não passa pela PostgREST, tem de ser rodado no SQL Editor do Supabase. Não tocam `leads` nem `distribuir_lead`.
 - `aplicar_fase0.py`, `aplicar_fase1.py`, `aplicar_fase2a.py`, `aplicar_fase2b.py` — todos com simulação por padrão, `--aplicar`, `--reverter` e recusa fora da janela sem `--fora-da-janela`.
-- `ROLLBACK_workflow_n8n.json` — export do workflow em `versionId e14f1ff7-aa49-4989-aaa7-b870a49f0ae8` (62 nós, `updatedAt 2026-09-22T22:46:46Z`). **Segredos redigidos** (14 ocorrências): serve como registro do estado anterior, **não** para restaurar. Restaurar este arquivo apagaria as credenciais embutidas nos nós.
+- `ROLLBACK_workflow_n8n.json` — export do workflow em `versionId e14f1ff7-aa49-4989-aaa7-b870a49f0ae8` (62 nós, `updatedAt 2026-09-22T22:46:46Z`). **Segredos redigidos** (14 ocorrências): serve como registro do estado anterior, **não** para restaurar. Restaurar este arquivo apagaria as credenciais embutidas nos nós. **Removido do git em 2026-10-10**: a redação de 23/09 deixou passar a chave da Evolution da loja, e o `pinData` tinha nome e dados de clientes reais. A cópia fica fora do git, em `.n8n_backups/ROLLBACK_workflow_n8n_e14f1ff7_2026-09-23.json`, só na máquina do dono.
 
 O rollback de verdade é a **version history do próprio n8n**: restaurar `e14f1ff7-aa49-4989-aaa7-b870a49f0ae8`, que preserva as credenciais.
 

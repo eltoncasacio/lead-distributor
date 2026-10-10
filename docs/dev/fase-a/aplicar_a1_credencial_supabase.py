@@ -22,7 +22,7 @@ Passos, em ordem:
   python3 aplicar_a1_credencial_supabase.py --aplicar       sem janela de horario, por decisao do dono (2026-10-10)
   python3 aplicar_a1_credencial_supabase.py --reverter       volta o snapshot salvo pelo --aplicar
 
-Requer no .env: N8N_API_KEY, SUPABASE_SERVICE_KEY, SUPABASE_URL.
+Requer no .env: N8N_API_KEY, SUPABASE_SERVICE_KEY, SUPABASE_URL, LOJA_ID.
 Estado (id da credencial, snapshots) em .n8n_backups/ — fora do git, contem segredo."""
 import datetime, json, pathlib, sys, time, urllib.error, urllib.request, uuid
 
@@ -33,10 +33,10 @@ for linha in (RAIZ / ".env").read_text().splitlines():
         k, v = linha.split("=", 1)
         ENV[k.strip()] = v.strip().strip('"').strip("'")
 KEY, SK, SURL = ENV.get("N8N_API_KEY"), ENV.get("SUPABASE_SERVICE_KEY"), ENV.get("SUPABASE_URL", "").rstrip("/")
-if not (KEY and SK and SURL): sys.exit("erro: .env precisa de N8N_API_KEY, SUPABASE_SERVICE_KEY e SUPABASE_URL")
+if not (KEY and SK and SURL and ENV.get("LOJA_ID")): sys.exit("erro: .env precisa de N8N_API_KEY, SUPABASE_SERVICE_KEY, SUPABASE_URL e LOJA_ID")
 
 B, WID = "https://n8n.yavoh.cloud/api/v1", "Qj200sqS9544ao3d"
-LOJA_ID = "<LOJA_ID>"
+LOJA_ID = ENV.get("LOJA_ID")
 CRED_NOME, CRED_TIPO = "Supabase Leads service_role", "httpCustomAuth"
 BK = RAIZ / ".n8n_backups"; BK.mkdir(mode=0o700, exist_ok=True)
 ESTADO = BK / "a1_estado.json"

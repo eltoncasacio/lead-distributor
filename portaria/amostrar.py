@@ -29,7 +29,9 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(AQUI)
 load_dotenv(os.path.join(RAIZ, ".env"))
 
-LOJA = "<LOJA_ID>"
+LOJA = os.environ.get("LOJA_ID")
+if not LOJA:
+    sys.exit("LOJA_ID nao encontrado no .env")
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 100
 SEMENTE = 20260923  # fixa, para a amostra ser reproduzivel entre sessoes
 

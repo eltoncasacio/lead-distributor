@@ -27,7 +27,9 @@ if not url or not key:
     raise SystemExit("credenciais nao encontradas no .env")
 
 sb = create_client(url, key)
-LOJA = "<LOJA_ID>"
+LOJA = os.environ.get("LOJA_ID")
+if not LOJA:
+    raise SystemExit("LOJA_ID nao encontrado no .env")
 HOJE = datetime.now(timezone.utc)
 
 
