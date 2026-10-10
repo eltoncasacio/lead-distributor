@@ -10,3 +10,4 @@ portaria/*.csv
 
 # Snapshots do workflow n8n antes de cada mudanca — contem segredos, nunca commitar
 .n8n_backups/
+.serena
