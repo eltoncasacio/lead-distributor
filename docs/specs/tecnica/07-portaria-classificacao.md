@@ -1,4 +1,26 @@
-# Portaria — classificação de mensagens (prompt v2)
+# Portaria — classificação de mensagens
+
+> ## Desenho v3 (2026-10-10) — VALE ESTE. O resto do documento (v2) fica como histórico.
+>
+> Decisão do dono, depois de conversa em 10/10:
+>
+> ```
+> número conhecido  → o sistema já sabe o que fazer (gerente/vendedor = comandos; cliente que já foi lead = como hoje)
+> número novo       → IA responde: é lead?   sim     → distribui
+>                                            não     → ignora (não distribui, não avisa ninguém)
+>                                            dúvida, erro, IA fora do ar → distribui
+> ```
+>
+> - **"Número novo" = nunca foi lead desta loja.** Quem foi ignorado continua "novo": se mandar outra mensagem, passa pela IA de novo — um "bom dia" ignorado não prende o cliente.
+> - **Ignorar ≠ apagar:** a mensagem fica gravada em `mensagens_recebidas` com o motivo da IA, em silêncio. Erro da IA fica rastreável.
+> - **Fora da IA:** números de plataforma (NaPista, iCarros), webhooks de portal (Mobiauto, Webmotors). **Áudio/foto sem texto de número novo → distribui** (a IA não ouve áudio; dúvida distribui).
+> - **Saem do desenho v2:** `pos_venda`, Triagem com tela (Streamlit saiu do plano), "distribui e marca".
+> - **O único erro caro** é a IA dizer "não é lead" para um cliente. Portão para ligar: **zero** clientes classificados como "não lead" na amostra rotulada.
+> - **Caminho:** (1) medir contra amostra rotulada — modelos **gratuitos** do OpenRouter para iterar o prompt (com nomes e telefones **mascarados**, porque provedores gratuitos podem guardar o texto), confirmação final com o modelo de produção (barato: Claude Haiku 5.5 via OpenRouter); (2) **modo sombra** uma semana — classifica e registra, mas tudo continua sendo distribuído; (3) ligar.
+> - **Deixado para depois (decisão do dono):** mensagem de boas-vindas automática para número novo classificado como lead/dúvida — como cortesia (distribui na hora), nunca como portão. Ver a conversa de 10/10 no plano.
+> - **Não resolve:** envio ao vendedor que falha (ex.: vendedor com número sem WhatsApp) — é verificação de entrega, problema separado.
+
+## Desenho v2 (2026-09-23) — histórico
 
 > **STATUS (2026-09-23): parcialmente construído, nada em produção.**
 >
