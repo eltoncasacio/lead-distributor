@@ -10,10 +10,16 @@
 --
 -- Sem regex de proposito: nome e telefone sao normalizados com translate().
 --
--- Confirmacao sem estado (eco-e-reenvio, spec 08 secao 6): o comando de
--- escrita digitado "solto" so devolve o que o sistema entendeu e o comando
--- exato para reenviar, com prefixo `confirmar` e telefone completo. O
--- reenvio e que executa.
+-- Confirmacao: o comando de escrita digitado "solto" devolve o que o sistema
+-- entendeu (eco) e guarda a acao em `comandos_pendentes` por 5 minutos. A
+-- resposta "sim" (ou "pode", "confirma"...) executa; "nao"/"cancela" descarta;
+-- qualquer outra mensagem tambem descarta. O reenvio exato
+-- `confirmar <comando> <telefone completo>` continua valendo (2026-10-10).
+--
+-- Estrutura: `_executar_comando_base` tem toda a regra (papel, parsing,
+-- validacao, escrita). `executar_comando` e uma camada fina na frente que so
+-- cuida da pendencia. A assinatura de `executar_comando` nao mudou: o n8n nao
+-- precisa saber de nada disso.
 --
 -- Rollback: ROLLBACK_comandos_whatsapp.sql (mesmo diretorio).
 
@@ -89,6 +95,17 @@ LANGUAGE sql IMMUTABLE AS $$
   SELECT json_build_object('papel', p_papel, 'acao', p_acao, 'resposta', p_resposta)
 $$;
 
+-- Eco de comando de escrita: leva junto o comando exato que confirma, para a
+-- camada de pendencia guardar.
+CREATE OR REPLACE FUNCTION public._cmd_eco(p_papel text, p_resposta text, p_confirmacao text) RETURNS json
+LANGUAGE sql IMMUTABLE AS $$
+  SELECT json_build_object('papel', p_papel, 'acao', 'eco',
+    'resposta', p_resposta
+      || E'\n\nPara confirmar, responda *sim* (vale por 5 minutos). Para cancelar, *não*.'
+      || E'\nOu envie: *' || p_confirmacao || '*',
+    'confirmacao', p_confirmacao)
+$$;
+
 -- ---------------------------------------------------------------------------
 -- 2. Unicidade no banco (vale para comando, Dashboard e SQL direto)
 -- ---------------------------------------------------------------------------
@@ -118,7 +135,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_vendedores_loja_telefone
 -- 3. executar_comando
 -- ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION public.executar_comando(
+CREATE OR REPLACE FUNCTION public._executar_comando_base(
   p_loja_id   uuid,
   p_remetente text,
   p_texto     text
@@ -207,7 +224,7 @@ BEGIN
                      || E'\n• pausar Nome'
                      || E'\n• reativar Nome'
                      || E'\n• excluir vendedor Nome'
-                     || E'\n\nOs comandos que mudam a fila pedem confirmação: eu respondo com o comando pronto e você reenvia.';
+                     || E'\n\nOs comandos que mudam a fila pedem confirmação: eu mostro o que vou fazer e você responde *sim*.';
   ELSE
     v_menu := v_menu || E'\n• meus leads'
                      || E'\n• status — seu resumo';
@@ -319,7 +336,7 @@ BEGIN
     IF v_alvo.id IS NOT NULL THEN
       RETURN public._cmd_resp(v_papel, 'erro',
         'Já existe um vendedor chamado *' || v_alvo.nome || '* (' || v_alvo.status || '). Os nomes não podem se repetir.'
-        || CASE WHEN v_alvo.status <> 'ativo' THEN E'\nPara trazê-lo de volta: *reativar ' || v_alvo.nome || '*' ELSE '' END);
+        || CASE WHEN v_alvo.status <> 'ativo' THEN E'\nPara trazer de volta: *reativar ' || v_alvo.nome || '*' ELSE '' END);
     END IF;
 
     SELECT nome INTO v_outro FROM public.vendedores
@@ -339,13 +356,14 @@ BEGIN
      WHERE loja_id = p_loja_id AND status = 'removido' AND public.chave_telefone(numero_whatsapp) = public.chave_telefone(v_tel) LIMIT 1;
     IF v_outro IS NOT NULL THEN
       RETURN public._cmd_resp(v_papel, 'erro', 'Esse telefone (' || public.formatar_telefone(v_tel) || ') é de *' || v_outro
-        || E'*, que foi removido.\nPara trazê-lo de volta: *reativar ' || v_outro || '*');
+        || E'*, que foi removido(a).\nPara trazer de volta: *reativar ' || v_outro || '*');
     END IF;
 
     IF NOT v_confirma THEN
-      RETURN public._cmd_resp(v_papel, 'eco',
+      RETURN public._cmd_eco(v_papel,
         'Entendi: inserir o vendedor *' || v_nome || '* com o WhatsApp ' || public.formatar_telefone(v_tel)
-        || E'.\nEle entra no fim da fila.\n\nPara confirmar, envie exatamente:\n*confirmar inserir vendedor ' || v_nome || ' ' || v_tel || '*');
+        || E'.\nEntra no fim da fila.',
+        'confirmar inserir vendedor ' || v_nome || ' ' || v_tel);
     END IF;
 
     SELECT coalesce(max(ordem_fila), 0) + 1 INTO v_ordem FROM public.vendedores WHERE loja_id = p_loja_id;
@@ -409,15 +427,14 @@ BEGIN
   END IF;
 
   IF NOT v_confirma OR v_fone_raw IS NULL THEN
-    RETURN public._cmd_resp(v_papel, 'eco',
+    RETURN public._cmd_eco(v_papel,
       'Entendi: ' || v_verbo || ' *' || v_alvo.nome || '* (' || public.formatar_telefone(v_alvo.numero_whatsapp) || ').'
       || CASE v_verbo
-           WHEN 'pausar'   THEN E'\nEle deixa de receber novos leads até ser reativado.'
-           WHEN 'excluir'  THEN E'\nEle sai da fila. O histórico de leads dele é mantido.'
-           ELSE E'\nEle volta a receber leads.'
-         END
-      || E'\n\nPara confirmar, envie exatamente:\n*confirmar ' || v_verbo || ' ' || v_alvo.nome || ' '
-      || public.somente_digitos(v_alvo.numero_whatsapp) || '*');
+           WHEN 'pausar'   THEN E'\nDeixa de receber novos leads até ser reativado(a).'
+           WHEN 'excluir'  THEN E'\nSai da fila. O histórico de leads é mantido.'
+           ELSE E'\nVolta a receber leads.'
+         END,
+      'confirmar ' || v_verbo || ' ' || v_alvo.nome || ' ' || public.somente_digitos(v_alvo.numero_whatsapp));
   END IF;
 
   UPDATE public.vendedores
@@ -455,18 +472,115 @@ BEGIN
 END
 $fn$;
 
--- Chamada so pelo n8n (service_role). Nunca por anon/authenticated.
-REVOKE ALL ON FUNCTION public.executar_comando(uuid, text, text) FROM PUBLIC;
+
+-- ---------------------------------------------------------------------------
+-- 4. Confirmacao por "sim": pendencia + camada executar_comando
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS public.comandos_pendentes (
+  loja_id          uuid NOT NULL REFERENCES public.lojas(id) ON DELETE CASCADE,
+  remetente_chave  text NOT NULL,
+  comando          text NOT NULL,
+  criado_em        timestamptz NOT NULL DEFAULT now(),
+  expira_em        timestamptz NOT NULL,
+  PRIMARY KEY (loja_id, remetente_chave)
+);
+ALTER TABLE public.comandos_pendentes ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-    EXECUTE 'REVOKE ALL ON FUNCTION public.executar_comando(uuid, text, text) FROM anon';
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon')
+     AND NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'comandos_pendentes') THEN
+    EXECUTE 'CREATE POLICY "Deny all for anon" ON public.comandos_pendentes FOR ALL TO anon USING (false)';
   END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-    EXECUTE 'REVOKE ALL ON FUNCTION public.executar_comando(uuid, text, text) FROM authenticated';
+END $$;
+
+CREATE OR REPLACE FUNCTION public.executar_comando(
+  p_loja_id   uuid,
+  p_remetente text,
+  p_texto     text
+) RETURNS json
+LANGUAGE plpgsql
+SET search_path = public, pg_catalog
+AS $fn$
+DECLARE
+  v_chave  text := public.chave_telefone(p_remetente);
+  v_txt    text;
+  v_pend   public.comandos_pendentes%ROWTYPE;
+  v_r      json;
+BEGIN
+  IF p_loja_id IS NULL OR v_chave IS NULL THEN
+    RETURN public._executar_comando_base(p_loja_id, p_remetente, p_texto);
   END IF;
+
+  -- Mesmo lock da base (reentrante na transacao): pendencia e escrita andam juntas.
+  PERFORM pg_advisory_xact_lock(hashtextextended('executar_comando:' || p_loja_id::text, 0));
+
+  v_txt := trim(translate(public.normalizar_nome(p_texto), '.,!?;:', ''));
+  SELECT * INTO v_pend FROM public.comandos_pendentes
+   WHERE loja_id = p_loja_id AND remetente_chave = v_chave;
+
+  IF v_txt IN ('sim', 's', 'ss', 'sim sim', 'pode', 'pode sim', 'sim pode', 'pode ser', 'confirma', 'confirmo',
+               'confirmar', 'confirmado', 'ok', 'okay', 'isso', 'isso mesmo', 'isso ai', 'manda', 'pode mandar',
+               'positivo', 'claro', 'certo', 'fechado', 'beleza', 'blz', 'yes', 'faz', 'pode fazer', 'faca') THEN
+    IF v_pend.loja_id IS NULL THEN
+      v_r := public._executar_comando_base(p_loja_id, p_remetente, 'menu');
+      IF v_r->>'papel' = 'desconhecido' THEN RETURN v_r; END IF;
+      RETURN public._cmd_resp(v_r->>'papel', 'erro', 'Não há nada aguardando confirmação. Envie *menu* para ver os comandos.');
+    END IF;
+    DELETE FROM public.comandos_pendentes WHERE loja_id = p_loja_id AND remetente_chave = v_chave;
+    IF v_pend.expira_em < now() THEN
+      v_r := public._executar_comando_base(p_loja_id, p_remetente, 'menu');
+      RETURN public._cmd_resp(v_r->>'papel', 'erro', 'A confirmação expirou (5 minutos). Envie o comando de novo. Nada foi alterado.');
+    END IF;
+    -- Executa exatamente o comando guardado, com as mesmas validacoes de sempre
+    -- (o estado pode ter mudado nesses minutos: a base confere tudo de novo).
+    RETURN public._executar_comando_base(p_loja_id, p_remetente, v_pend.comando);
+  END IF;
+
+  IF v_txt IN ('nao', 'n', 'nao nao', 'cancela', 'cancelar', 'cancelado', 'cancele', 'esquece', 'deixa', 'deixa pra la',
+               'nao quero', 'negativo', 'pare', 'no') THEN
+    IF v_pend.loja_id IS NOT NULL THEN
+      DELETE FROM public.comandos_pendentes WHERE loja_id = p_loja_id AND remetente_chave = v_chave;
+      v_r := public._executar_comando_base(p_loja_id, p_remetente, 'menu');
+      RETURN public._cmd_resp(v_r->>'papel', 'cancelado', 'Cancelado. Nada foi alterado.');
+    END IF;
+  END IF;
+
+  -- Qualquer outra mensagem descarta a pendencia anterior.
+  DELETE FROM public.comandos_pendentes WHERE loja_id = p_loja_id AND remetente_chave = v_chave;
+
+  v_r := public._executar_comando_base(p_loja_id, p_remetente, p_texto);
+  IF v_r->>'acao' = 'eco' AND v_r->>'confirmacao' IS NOT NULL THEN
+    INSERT INTO public.comandos_pendentes (loja_id, remetente_chave, comando, expira_em)
+    VALUES (p_loja_id, v_chave, v_r->>'confirmacao', now() + interval '5 minutes');
+  END IF;
+  RETURN v_r;
+END
+$fn$;
+
+-- Chamada so pelo n8n (service_role). Nunca por anon/authenticated.
+DO $$
+DECLARE f text;
+BEGIN
+  FOREACH f IN ARRAY ARRAY['public.executar_comando(uuid, text, text)', 'public._executar_comando_base(uuid, text, text)'] LOOP
+    EXECUTE 'REVOKE ALL ON FUNCTION ' || f || ' FROM PUBLIC';
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+      EXECUTE 'REVOKE ALL ON FUNCTION ' || f || ' FROM anon';
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+      EXECUTE 'REVOKE ALL ON FUNCTION ' || f || ' FROM authenticated';
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+      EXECUTE 'GRANT EXECUTE ON FUNCTION ' || f || ' TO service_role';
+    END IF;
+  END LOOP;
+  -- tabela de pendencias: so o service_role (RLS + policy acima barram anon)
+  EXECUTE 'REVOKE ALL ON public.comandos_pendentes FROM PUBLIC';
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN EXECUTE 'REVOKE ALL ON public.comandos_pendentes FROM anon'; END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN EXECUTE 'REVOKE ALL ON public.comandos_pendentes FROM authenticated'; END IF;
+  -- explicito: nao depender do default privileges do Supabase para tabela nova
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
-    EXECUTE 'GRANT EXECUTE ON FUNCTION public.executar_comando(uuid, text, text) TO service_role';
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.comandos_pendentes TO service_role';
   END IF;
 END $$;
 

@@ -243,4 +243,74 @@ BEGIN
   PERFORM pg_temp.ok(NOT EXISTS (SELECT 1 FROM vendedores WHERE nome = 'Novato'), 'Novato nao foi inserido');
 END $$;
 
+-- ---------------------------------------------------------------- confirmacao por "sim"
+DO $$
+DECLARE A text := '11111111-1111-1111-1111-111111111111'; G text := '5519900000001'; r json; n int;
+BEGIN
+  DELETE FROM comandos_pendentes;
+  -- sim sem nada pendente
+  PERFORM pg_temp.ok(pg_temp.resp(A, G, 'sim') LIKE '%Não há nada aguardando%', 'sim sem pendencia');
+
+  -- eco guarda pendencia; "Sim!" (maiuscula, pontuacao) executa
+  r := pg_temp.cmd(A, G, 'inserir vendedor Paula 19 97777-0001');
+  PERFORM pg_temp.eq(r->>'acao', 'eco', 'inserir da eco');
+  PERFORM pg_temp.ok(r->>'resposta' LIKE '%responda *sim*%', 'eco pede sim');
+  PERFORM pg_temp.eq((SELECT count(*) FROM comandos_pendentes)::text, '1', 'pendencia criada');
+  PERFORM pg_temp.ok(NOT EXISTS (SELECT 1 FROM vendedores WHERE nome = 'Paula'), 'eco nao insere');
+  r := pg_temp.cmd(A, G, 'Sim!');
+  PERFORM pg_temp.eq(r->>'acao', 'executado', 'sim executa');
+  PERFORM pg_temp.ok(EXISTS (SELECT 1 FROM vendedores WHERE nome = 'Paula' AND status = 'ativo'), 'Paula inserida');
+  PERFORM pg_temp.eq((SELECT count(*) FROM comandos_pendentes)::text, '0', 'pendencia consumida');
+  -- segundo sim nao repete
+  PERFORM pg_temp.ok(pg_temp.resp(A, G, 'sim') LIKE '%Não há nada aguardando%', 'sim nao executa duas vezes');
+
+  -- nao cancela
+  PERFORM pg_temp.eq(pg_temp.acao(A, G, 'pausar Paula'), 'eco', 'pausar eco');
+  PERFORM pg_temp.eq(pg_temp.acao(A, G, 'não'), 'cancelado', 'nao cancela');
+  PERFORM pg_temp.eq((SELECT status FROM vendedores WHERE nome = 'Paula'), 'ativo', 'cancelado nao pausa');
+
+  -- outra mensagem descarta a pendencia
+  PERFORM pg_temp.eq(pg_temp.acao(A, G, 'pausar Paula'), 'eco', 'pausar eco 2');
+  PERFORM pg_temp.eq(pg_temp.acao(A, G, 'listar vendedores'), 'info', 'troca de assunto');
+  PERFORM pg_temp.ok(pg_temp.resp(A, G, 'pode') LIKE '%Não há nada aguardando%', 'pendencia descartada');
+  PERFORM pg_temp.eq((SELECT status FROM vendedores WHERE nome = 'Paula'), 'ativo', 'descartado nao pausa');
+
+  -- expirada nao executa
+  PERFORM pg_temp.eq(pg_temp.acao(A, G, 'excluir vendedor Paula'), 'eco', 'excluir eco');
+  UPDATE comandos_pendentes SET expira_em = now() - interval '1 second';
+  PERFORM pg_temp.ok(pg_temp.resp(A, G, 'confirma') LIKE '%expirou%', 'expirada avisa');
+  PERFORM pg_temp.eq((SELECT status FROM vendedores WHERE nome = 'Paula'), 'ativo', 'expirada nao exclui');
+
+  -- pendencia e por pessoa: outro gerente nao confirma a minha
+  INSERT INTO gerentes (loja_id, nome, numero_whatsapp) VALUES (A::uuid, 'Gerente A2', '5519900000003');
+  PERFORM pg_temp.eq(pg_temp.acao(A, G, 'pausar Paula'), 'eco', 'pausar eco 3');
+  PERFORM pg_temp.ok(pg_temp.resp(A, '5519900000003', 'sim') LIKE '%Não há nada aguardando%', 'outro gerente nao confirma');
+  PERFORM pg_temp.eq((SELECT status FROM vendedores WHERE nome = 'Paula'), 'ativo', 'ainda ativa');
+  -- e a pendencia e por loja: o mesmo numero em outra loja nao enxerga
+  PERFORM pg_temp.eq(pg_temp.acao('22222222-2222-2222-2222-222222222222', G, 'sim'), 'ignorado', 'outra loja ignora');
+  -- confirmacao exata antiga continua valendo
+  r := pg_temp.cmd(A, G, 'confirmar pausar Paula 5519977770001');
+  PERFORM pg_temp.eq(r->>'acao', 'executado', 'confirmar exato ainda funciona');
+  PERFORM pg_temp.eq((SELECT status FROM vendedores WHERE nome = 'Paula'), 'inativo', 'Paula pausada');
+
+  -- estado mudou entre o eco e o sim: a base revalida
+  PERFORM pg_temp.eq(pg_temp.acao(A, G, 'reativar Paula'), 'eco', 'reativar eco');
+  UPDATE vendedores SET status = 'ativo' WHERE nome = 'Paula';
+  PERFORM pg_temp.ok(pg_temp.resp(A, G, 'sim') LIKE '%já está ativo%', 'revalida no sim');
+
+  -- vendedor: "sim" nao tem o que confirmar, e cliente desconhecido e ignorado
+  PERFORM pg_temp.ok(pg_temp.resp(A, '5519911110001', 'sim') LIKE '%Não há nada aguardando%', 'vendedor sim');
+  PERFORM pg_temp.eq(pg_temp.acao(A, '5519955550000', 'sim'), 'ignorado', 'desconhecido ignorado');
+
+  -- quem nao e service_role nao le nem escreve pendencias
+  SET LOCAL ROLE anon;
+  BEGIN
+    PERFORM 1 FROM comandos_pendentes;
+    RAISE EXCEPTION 'FALHOU: anon leu comandos_pendentes';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  RESET ROLE;
+  DELETE FROM vendedores WHERE nome = 'Paula';
+  DELETE FROM gerentes WHERE nome = 'Gerente A2';
+END $$;
+
 SELECT 'TODOS OS TESTES PASSARAM' AS resultado;
