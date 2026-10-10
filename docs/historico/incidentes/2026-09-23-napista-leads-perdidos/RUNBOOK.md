@@ -151,6 +151,73 @@ O Passo 1 criou **dois** nós, não um: `Alerta Lead Nao Distribuido` (devolve a
 
 Critérios de aceite e checklist de cada passo: [ACEITE.md](ACEITE.md).
 
+## Complemento de 2026-10-05: o alerta "sem telefone" que chegou vazio
+
+Às 18:11 BRT chegou o alerta `Lead NaPista sem telefone do cliente` com cliente, veículo e mensagem em branco, e sem link. Investigado lendo a execução `9083` pela API pública do n8n (somente leitura).
+
+**Causa:** o evento que chegou ao webhook não era o template da NaPista. Era `messageType: placeholderMessage` (`placeholderMessage.type: 0`) — o aviso do WhatsApp de que há uma mensagem, mas o aparelho conectado não conseguiu abrir o conteúdo. Não há texto, nome, veículo nem botão em nenhum campo do payload. O conteúdo, com o botão "Ver detalhes", só existiu no celular.
+
+**Evidência:**
+
+| Execução | Horário (BRT) | Tipo |
+|---|---|---|
+| `9076` | 13:24 | `templateMessage` — conteúdo completo (lead com telefone) |
+| `9077` | 14:36 | `placeholderMessage` |
+| `9082` | 18:09 | `placeholderMessage` |
+| `9083` | 18:11 | `placeholderMessage` |
+
+Nas execuções `9078` a `9087` não houve segunda entrega do mesmo `key.id` com o conteúdo real. Houve 4 eventos `connection.update` no dia (15:50, 17:06, 18:21 e 19:24 BRT).
+
+**O que isto corrige no entendimento anterior:** o alerta do 2C lê o link em `hydratedButtons[0].urlButton.url`. Isso continua certo para `templateMessage`. Para `placeholderMessage` **não existe link a ler**, então não é falha do nó do alerta nem do formato do botão. É perda na camada Evolution/WhatsApp.
+
+**Não confirmado:** a relação entre as quedas de conexão e os placeholders é hipótese (coincidem no dia, mas não foi medida a correlação). Também não foi apurado se o conteúdo chega depois por outro evento.
+
+**Efeito prático:** o lead só pode ser recuperado abrindo o botão no celular. A linha de `mensagens_recebidas` é gravada com `texto` e `payload_bruto` vazios e `telefone_extraido` igual ao número da plataforma, por isso aparece na Triagem sem nenhuma informação útil.
+
+## Complemento de 2026-10-09: sessão da Evolution derrubada por ~48 h
+
+**Sintoma:** nenhum lead nem mensagem entrou depois de 06/10 (último lead 19:19 UTC) e 07/10 (última mensagem 15:28 UTC). Detectado pela auditoria (`auditoria_producao.py`), não por alerta.
+
+**Linha do tempo (UTC):**
+
+| Quando | O quê |
+|---|---|
+| 07/10 22:18 | Última mensagem processada (`9135`) |
+| 07/10 22:29 | Execução `9136`: `connection.update` com `state: close` e `statusReason: 401` — sessão desligada do aparelho. Última execução até a reconexão |
+| 09/10 ~20:45 | Reconexão: código de pareamento gerado com a chave **da instância** (`lojas.evolution_api_key`), digitado no iPhone da loja. Estado passou para `open`; webhook (`MESSAGES_UPSERT`, `CONNECTION_UPDATE`) continuava configurado |
+| 09/10 20:50 | Mensagem de teste: execução `9140`, registrada em `mensagens_recebidas` e **distribuída** (lead criado no mesmo segundo) |
+
+**Causa: troca de celular do dono da loja (mesmo número, agora iPhone), confirmada pelo dono em 2026-10-09.** Registrar o número num aparelho novo desvincula os aparelhos conectados, e a Evolution é um deles; isso casa com o erro 401 e com a ausência de tentativa de reconexão. A causa **não tem relação com o NaPista nem com qualquer portal de leads**. Falta apenas a **data exata** da troca, para casar com 07/10 19:29 (Brasília). Os eventos de 05/10 mostram a conexão oscilando (`connecting`/`open`/`close` várias vezes no dia), então pode ter havido instabilidade anterior.
+
+**Por que ninguém foi avisado:** o nó `Montar Alerta` rodou na execução `9136` e montou o texto "DESCONECTADO", mas no workflow ao vivo ele **não tem conexão de saída** (`main: [[]]`) — o Passo 0 deste runbook não está aplicado. Mesmo ligado, o envio sairia pela própria instância que caiu e não seria entregue (limitação já registrada em [fase-a-tirar-hardcodes-n8n.md](../../../dev/fase-a-tirar-hardcodes-n8n.md)).
+
+**Impacto:** leads dos portais e clientes que escreveram entre 07/10 22:29 UTC e 09/10 ~20:45 UTC **não chegaram ao sistema**. As mensagens devem estar no celular da loja. **Recuperação ainda não feita.**
+
+**Efeito colateral do teste:** a mensagem de teste gerou um lead real, distribuído a um vendedor, com `status_lead = negociando`. Deve ser marcado como "sem interesse" no Dashboard.
+
+**Aprendizados:**
+- A chave global da Evolution não é necessária para reconectar: a chave da instância, guardada em `lojas`, aceita `/instance/connect/{instância}?number=...` e devolve o `pairingCode`.
+- O sistema depende de o celular do dono continuar vinculado. Com mais lojas, cada troca de aparelho vira parada silenciosa. Ver "A Evolution vira o maior custo de suporte" no [plano-multiloja](../../../plano-multiloja.md).
+
+## Fase A1 (2026-10-10): chave do Supabase sai do workflow
+
+Aplicado em 2026-10-10 10:58 BRT, fora da janela 03h–05h, **por decisão explícita do dono** (a trava de horário foi retirada do script a pedido dele). Script: [`docs/dev/fase-a/aplicar_a1_credencial_supabase.py`](../../../dev/fase-a/aplicar_a1_credencial_supabase.py).
+
+| | `versionId` |
+|---|---|
+| antes | `baa01c3e-ac06-42a8-b768-bf7ed62179ea` |
+| depois | `81c399b7-0bbe-4055-bae6-84983af6b00e` |
+
+**O que mudou:** criada a credencial n8n `Supabase Leads service_role` (tipo Custom Auth, id `4jtWugcIUkX179st`), que injeta `apikey` e `Authorization`. Os 9 nós HTTP que falam com o Supabase passaram a usá-la. O campo `supabaseKey` saiu de 10 nós Set e de 2 nós Code (`Normaliza Dados Mobiauto`/`Webmotors`). `supabaseUrl` ficou. A chave **não foi trocada** — continua a mesma do `.env` do Dashboard.
+
+**Como foi verificado antes:** workflow descartável criado pela API leu `lojas` e chamou `comando_status` usando a credencial (execução `9152`, sucesso, chave ausente dos dados da execução) e foi apagado. Travas do script: a chave não aparece em nenhum nó, não sobra `supabaseKey`, nenhum nó com URL do Supabase sem a credencial — conferidas na simulação e de novo no que ficou gravado.
+
+**Verificado depois:** execução `9155` (10:59 BRT, comando `leads` de gerente) passou por `Identificar Loja`, `Identificar Remetente` e `Buscar Leads` com a credencial, sucesso, chave ausente dos dados. **Ainda não exercitados:** `Distribuir Lead`, `Registrar Mensagem`, `Buscar Mensagens Prontas` e os ramos Mobiauto/Webmotors — mesma configuração, conferir no primeiro lead real (ver ACEITE).
+
+**Rollback:** `python3 aplicar_a1_credencial_supabase.py --reverter` regrava o snapshot salvo em `.n8n_backups/` (fora do git, contém a chave). Só funciona enquanto a chave antiga não for revogada.
+
+**Ainda falta:** (1) rotacionar a chave — atualizar a credencial no n8n e o `.env` do Dashboard, depois revogar a antiga; (2) as execuções anteriores a esta versão continuam com a chave gravada nos dados — perde o valor com a rotação.
+
 ## Arquivos
 
 - `FIX_mensagens_recebidas.sql` / `ROLLBACK_mensagens_recebidas.sql` — Fase 3. **Não aplicados**: DDL não passa pela PostgREST, tem de ser rodado no SQL Editor do Supabase. Não tocam `leads` nem `distribuir_lead`.

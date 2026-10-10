@@ -7,3 +7,6 @@ venv/
 
 # Portaria: amostras com mensagens reais de clientes — nao commitar
 portaria/*.csv
+
+# Snapshots do workflow n8n antes de cada mudanca — contem segredos, nunca commitar
+.n8n_backups/

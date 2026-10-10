@@ -144,6 +144,14 @@ Encontrados durante o levantamento. **Não são Fase A** — registrados para n�
 
 Isso vale mais do que parece: foram **62 quedas em 14 dias** com uma loja, e a razão de ligar esse alerta era não perder lead em silêncio. Conserto exige um canal fora da instância que caiu (outra instância, e-mail, Telegram).
 
+### Chave `service_role` do Supabase escrita no nó `Normaliza Dados` (achado em 2026-10-09)
+
+O campo `supabaseKey` desse nó guarda um JWT com `role: service_role` do projeto, em texto, no próprio workflow. É a chave que contorna o RLS. Não aparecia no levantamento acima porque ele procurava valores fixos **de loja**, e esta é uma credencial.
+
+Impacto para vender: o workflow é editável por quem tiver acesso ao n8n e pode ser exportado ou copiado em backup. Cada cópia carrega acesso total ao banco de todas as lojas. Relevante também para o caso de clonar o workflow por loja.
+
+Correção prevista: guardar como credencial do n8n (por exemplo, Header Auth) e referenciá-la nos nós de HTTP que usam `supabaseKey`; depois **rotacionar a chave** no Supabase, porque a atual já esteve em texto. Rotacionar exige atualizar também o `.env` do Dashboard. Não aplicado.
+
 ### Os números de plataforma estão duplicados em 5 nós
 
 `551131361712` e `551130044558` aparecem em `Duplicado de Plataforma?`, `Filtro Msg Vazia`, `Verificar Origem`, `Telefone do Cliente?` e `Extrai Dados NaPista`. Portal que troque de número quebra em 5 lugares — e, pelo histórico da NaPista, portal troca de número. Candidato natural a virar tabela.

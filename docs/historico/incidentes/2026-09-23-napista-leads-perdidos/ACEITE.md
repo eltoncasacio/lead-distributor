@@ -190,3 +190,11 @@ Corte por origem, nesta ordem, cada um com 7 dias estáveis antes do próximo: N
 - [ ] Documentação atualizada: ADR 0008, ADR 0009, specs corrigidas, `CLAUDE.md` declarando que classificação mora na Portaria
 - [ ] Decisão comercial com a NaPista registrada, qualquer que seja
 - [ ] Uma semana sem alerta de lead não distribuído por causa técnica
+
+## Fase A1 (2026-10-10) — credencial do Supabase no n8n
+
+| Caminho | Testado? | Por quê |
+|---|---|---|
+| Comando de gerente (`Identificar Loja` → `Identificar Remetente` → `Buscar Leads`) | **sim**, execução `9155` | — |
+| `Distribuir Lead`, `Registrar Mensagem`, `Buscar Mensagens Prontas` | **não** | Testar exige criar um lead real e mandar mensagem a um vendedor. Mesma configuração de credencial dos nós testados. Conferir no primeiro lead real com `auditoria_producao.py` e nas execuções do n8n |
+| Ramos Mobiauto e Webmotors | **não** | Chegam por webhook do portal; não há como disparar sem gerar lead. Mobiauto está há 7+ dias sem lead |
