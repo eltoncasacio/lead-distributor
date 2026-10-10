@@ -267,7 +267,7 @@ Script: [`docs/dev/fase-a/aplicar_comandos_n8n.py`](../../../dev/fase-a/aplicar_
 
 **Reverter:** cada script tem `--reverter` (snapshot em `.n8n_backups/`). Reverter o limite volta para `968c9767`; reverter a IA volta para `7bffe0f1`.
 
-**Defeito corrigido — `status`/`leads` de gerente em frase livre (10/10 noite).** Execução `9181`: "Quais leads chegou nos últimos 3 dias" → IA entendeu `leads` → banco devolveu `legado` → `Identificar Comando` comparava o **texto original** com "leads" e o gerente recebeu "Comando não reconhecido". Correção: as duas condições de `Identificar Comando` passaram a ler `$('Executar Comando').item.json.interpretado`. `f45f0f4f` → `140877d2`, script `docs/dev/fase-a/aplicar_legado_interpretado_n8n.py`. Não testado ainda pelo celular.
+**Defeito corrigido — `status`/`leads` de gerente em frase livre (10/10 noite).** Execução `9181`: "Quais leads chegou nos últimos 3 dias" → IA entendeu `leads` → banco devolveu `legado` → `Identificar Comando` comparava o **texto original** com "leads" e o gerente recebeu "Comando não reconhecido". Correção: as duas condições de `Identificar Comando` passaram a ler `$('Executar Comando').item.json.interpretado`. `f45f0f4f` → `140877d2`, script `docs/dev/fase-a/aplicar_legado_interpretado_n8n.py`. Testado pelo celular: `9185` ("quais leads chegaram hoje?" → Buscar Leads) e `9186` ("como tá a loja?" → Buscar Status).
 
 **André removido como vendedor (10/10 noite, pedido do dono):** `status = removido` (histórico de leads mantido), continua gerente.
 
