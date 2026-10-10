@@ -314,55 +314,80 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------- camada de IA (travas)
+CREATE OR REPLACE FUNCTION pg_temp.ia(loja text, rem text, txt text, sug text) RETURNS json LANGUAGE sql AS
+$$ SELECT executar_comando_ia(loja::uuid, rem, txt, sug::jsonb) $$;
+
 DO $$
 DECLARE A text := '11111111-1111-1111-1111-111111111111'; G text := '5519900000001'; r json; st text;
 BEGIN
   DELETE FROM comandos_pendentes;
   -- sugestao boa e usada
-  r := executar_comando_ia(A::uuid, G, 'me mostra a turma ai', 'listar vendedores');
+  r := pg_temp.ia(A, G, 'me mostra a turma ai', '{"acao":"listar_vendedores","nome":"","telefone":"","pergunta":""}');
   PERFORM pg_temp.eq(r->>'ia', 'sugestao_usada', 'sugestao boa usada');
   PERFORM pg_temp.eq(r->>'acao', 'info', 'listar via IA');
   -- sem sugestao (IA caiu): texto original, igual a sem IA
-  r := executar_comando_ia(A::uuid, G, 'listar vendedores', NULL);
+  r := pg_temp.ia(A, G, 'listar vendedores', NULL);
   PERFORM pg_temp.eq(r->>'ia', 'sem_sugestao', 'sem sugestao');
   PERFORM pg_temp.eq(r->>'acao', 'info', 'original funciona');
-  -- verbo fora do vocabulario: descartado
-  r := executar_comando_ia(A::uuid, G, 'apaga tudo', 'drop table vendedores');
-  PERFORM pg_temp.eq(r->>'ia', 'verbo_desconhecido', 'verbo desconhecido');
+  -- acao fora da lista: descartada
+  r := pg_temp.ia(A, G, 'apaga tudo', '{"acao":"drop_table","nome":"","telefone":"","pergunta":""}');
+  PERFORM pg_temp.eq(r->>'ia', 'acao_desconhecida', 'acao desconhecida');
   PERFORM pg_temp.eq(r->>'interpretado', 'apaga tudo', 'usa o original');
-  -- IA nao pode confirmar sozinha
+  -- nenhum: texto original
+  r := pg_temp.ia(A, G, 'bom dia', '{"acao":"nenhum","nome":"","telefone":"","pergunta":""}');
+  PERFORM pg_temp.eq(r->>'ia', 'nenhum', 'nenhum');
+  -- confirmar nao existe como acao
   st := (SELECT status FROM vendedores WHERE nome = 'Diego');
-  r := executar_comando_ia(A::uuid, G, 'pausa o diego', 'confirmar pausar Diego 5519911110002');
-  PERFORM pg_temp.eq(r->>'ia', 'verbo_desconhecido', 'confirmar vindo da IA e barrado');
+  r := pg_temp.ia(A, G, 'pausa o diego', '{"acao":"confirmar","nome":"Diego","telefone":"5519911110002","pergunta":""}');
+  PERFORM pg_temp.eq(r->>'ia', 'acao_desconhecida', 'confirmar vindo da IA e barrado');
   PERFORM pg_temp.eq((SELECT status FROM vendedores WHERE nome = 'Diego'), st, 'Diego nao mudou');
   -- telefone inventado: descartado
-  r := executar_comando_ia(A::uuid, G, 'coloca o Beto na fila', 'inserir vendedor Beto 19 98888-1234');
+  r := pg_temp.ia(A, G, 'coloca o Beto na fila', '{"acao":"inserir","nome":"Beto","telefone":"19988881234","pergunta":""}');
   PERFORM pg_temp.eq(r->>'ia', 'telefone_inventado', 'telefone inventado barrado');
   PERFORM pg_temp.ok(NOT EXISTS (SELECT 1 FROM comandos_pendentes), 'nada pendente');
-  -- telefone que esta no texto: aceito (com ou sem 55, com mascara)
-  r := executar_comando_ia(A::uuid, G, 'bota o Beto, numero (19) 98888-1234', 'inserir vendedor Beto 19988881234');
-  PERFORM pg_temp.eq(r->>'ia', 'sugestao_usada', 'telefone literal aceito');
+  -- nome novo inventado/corrigido: descartado
+  r := pg_temp.ia(A, G, 'coloca o Bt, 19 98888-1234', '{"acao":"inserir","nome":"Roberto","telefone":"19988881234","pergunta":""}');
+  PERFORM pg_temp.eq(r->>'ia', 'nome_inventado', 'nome novo inventado barrado');
+  -- telefone e nome que estao no texto: aceito (com mascara)
+  r := pg_temp.ia(A, G, 'bota o Beto, numero (19) 98888-1234', '{"acao":"inserir","nome":"Beto","telefone":"19988881234","pergunta":""}');
+  PERFORM pg_temp.eq(r->>'ia', 'sugestao_usada', 'inserir literal aceito');
   PERFORM pg_temp.eq(r->>'acao', 'eco', 'inserir via IA so faz eco');
   PERFORM pg_temp.ok(NOT EXISTS (SELECT 1 FROM vendedores WHERE nome = 'Beto' AND loja_id = A::uuid), 'eco nao insere');
-  r := executar_comando_ia(A::uuid, G, 'pode', 'sim');
+  r := pg_temp.ia(A, G, 'pode', '{"acao":"sim","nome":"","telefone":"","pergunta":""}');
   PERFORM pg_temp.eq(r->>'acao', 'executado', 'sim via IA executa a pendencia');
   PERFORM pg_temp.ok(EXISTS (SELECT 1 FROM vendedores WHERE nome = 'Beto' AND loja_id = A::uuid), 'Beto inserido');
+  -- nome existente normalizado pela IA (apelido) e aceito; o banco confere
+  r := pg_temp.ia(A, G, 'pausa o betinho', '{"acao":"pausar","nome":"Beto","telefone":"","pergunta":""}');
+  PERFORM pg_temp.eq(r->>'acao', 'eco', 'apelido vira eco do vendedor certo');
+  PERFORM pg_temp.ok(r->>'resposta' LIKE '%Beto%98888-1234%', 'eco mostra nome e telefone');
+  r := pg_temp.ia(A, G, 'nao', '{"acao":"nao","nome":"","telefone":"","pergunta":""}');
+  PERFORM pg_temp.eq(r->>'acao', 'cancelado', 'nao cancela');
+  -- esclarecer: devolve a pergunta, nao executa, descarta pendencia
+  PERFORM pg_temp.eq(pg_temp.acao(A, G, 'pausar Beto'), 'eco', 'pendencia para descartar');
+  r := pg_temp.ia(A, G, 'tira ele', '{"acao":"esclarecer","nome":"","telefone":"","pergunta":"Quem você quer tirar da fila?"}');
+  PERFORM pg_temp.eq(r->>'acao', 'esclarecer', 'esclarecer');
+  PERFORM pg_temp.ok(r->>'resposta' LIKE 'Quem você quer tirar da fila?%', 'pergunta devolvida');
+  PERFORM pg_temp.ok(NOT EXISTS (SELECT 1 FROM comandos_pendentes), 'esclarecer descarta pendencia');
+  PERFORM pg_temp.eq((SELECT status FROM vendedores WHERE nome = 'Beto' AND loja_id = A::uuid), 'ativo', 'esclarecer nao executa');
+  r := pg_temp.ia(A, G, 'hmm', '{"acao":"esclarecer","nome":"","telefone":"","pergunta":""}');
+  PERFORM pg_temp.eq(r->>'ia', 'esclarecer_sem_pergunta', 'esclarecer vazio cai no original');
+  r := pg_temp.ia(A, '5519955550000', 'tira ele', '{"acao":"esclarecer","nome":"","telefone":"","pergunta":"Quem?"}');
+  PERFORM pg_temp.eq(r->>'acao', 'ignorado', 'cliente nao recebe pergunta da IA');
   -- vendedor continua sem poder escrever, com ou sem IA
   INSERT INTO vendedores (loja_id, nome, numero_whatsapp, status, ordem_fila) VALUES (A::uuid, 'Vend IA', '5519966660001', 'ativo', 60);
-  r := executar_comando_ia(A::uuid, '5519966660001', 'tira o diego da fila', 'excluir vendedor Diego');
+  r := pg_temp.ia(A, '5519966660001', 'tira o beto da fila', '{"acao":"excluir","nome":"Beto","telefone":"","pergunta":""}');
   PERFORM pg_temp.eq(r->>'acao', 'negado', 'vendedor negado via IA');
-  DELETE FROM vendedores WHERE nome = 'Vend IA';
-  -- cliente desconhecido continua ignorado
-  r := executar_comando_ia(A::uuid, '5519955550000', 'oi', 'menu');
-  PERFORM pg_temp.eq(r->>'acao', 'ignorado', 'desconhecido ignorado via IA');
-  DELETE FROM vendedores WHERE nome = 'Beto' AND loja_id = A::uuid;
+  DELETE FROM vendedores WHERE nome IN ('Vend IA', 'Beto') AND loja_id = A::uuid;
+  -- sugestao que nao e objeto
+  r := pg_temp.ia(A, G, 'listar vendedores', '"listar"');
+  PERFORM pg_temp.eq(r->>'ia', 'sem_sugestao', 'json nao-objeto ignorado');
 END $$;
 
 DO $$
 BEGIN
   SET LOCAL ROLE anon;
   BEGIN
-    PERFORM executar_comando_ia('11111111-1111-1111-1111-111111111111', '5519900000001', 'menu', 'menu');
+    PERFORM executar_comando_ia('11111111-1111-1111-1111-111111111111', '5519900000001', 'menu', '{"acao":"menu"}'::jsonb);
     RAISE EXCEPTION 'FALHOU: anon executou executar_comando_ia';
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   RESET ROLE;

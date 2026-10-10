@@ -560,57 +560,92 @@ $fn$;
 
 
 -- ---------------------------------------------------------------------------
--- 5. Camada de IA: a IA so SUGERE o comando; aqui se decide se a sugestao vale
+-- 5. Camada de IA: a IA so SUGERE; aqui se decide se a sugestao vale
 -- ---------------------------------------------------------------------------
--- O n8n manda o texto original e a sugestao da IA (ou NULL, se a IA caiu).
--- A sugestao so e usada se passar nas travas; senao vale o texto original,
--- que e exatamente o comportamento sem IA. A IA nunca executa nada: o que ela
--- sugere passa por executar_comando, com eco e "sim" para qualquer escrita.
+-- O n8n manda o texto original e a resposta estruturada da IA (ou NULL, se a
+-- IA caiu): {"acao": ..., "nome": ..., "telefone": ..., "pergunta": ...}.
+-- `acao` e uma lista fechada. Esta funcao monta o comando a partir dos campos
+-- e so o usa se passar nas travas; senao vale o texto original — exatamente o
+-- comportamento sem IA. Escrita continua exigindo eco + "sim" do humano.
 --
 -- Travas:
---   1. primeira palavra tem de ser um verbo conhecido;
---   2. "confirmar ..." nunca vem da IA (a confirmacao e do humano);
---   3. todo digito da sugestao tem de estar no texto original, na mesma ordem
---      (a IA nao inventa telefone).
+--   1. `acao` fora da lista -> texto original;
+--   2. todo digito de `telefone` tem de estar no texto original (a IA nao
+--      inventa telefone);
+--   3. inserir: o `nome` novo tem de aparecer no texto original (a IA nao
+--      inventa nem "corrige" nome de quem ainda nao existe);
+--   4. "confirmar" nunca e montado aqui: a confirmacao e do humano ("sim").
+--   5. esclarecer: so devolve a pergunta da IA (curta), nao executa nada, e so
+--      para gerente/vendedor cadastrado.
+-- Nome de vendedor que ja existe (pausar/reativar/excluir) pode vir
+-- normalizado pela IA ("o japinha" -> "Japa"): quem decide se existe e o
+-- banco, e o eco mostra nome e telefone antes do "sim".
+DROP FUNCTION IF EXISTS public.executar_comando_ia(uuid, text, text, text);
+
 CREATE OR REPLACE FUNCTION public.executar_comando_ia(
   p_loja_id   uuid,
   p_remetente text,
   p_texto     text,
-  p_sugestao  text
+  p_sugestao  jsonb
 ) RETURNS json
 LANGUAGE plpgsql
 SET search_path = public, pg_catalog
 AS $fn$
 DECLARE
-  v_sug    text := nullif(trim(coalesce(p_sugestao, '')), '');
-  v_verbo  text;
-  v_dig_s  text;
-  v_dig_t  text;
-  v_usar   text;
+  v_acao   text := coalesce(p_sugestao->>'acao', '');
+  v_nome   text := trim(coalesce(p_sugestao->>'nome', ''));
+  v_tel    text := public.somente_digitos(p_sugestao->>'telefone');
+  v_perg   text := trim(coalesce(p_sugestao->>'pergunta', ''));
+  v_dig_t  text := public.somente_digitos(p_texto);
+  v_usar   text := p_texto;
   v_motivo text;
   v_r      json;
 BEGIN
-  v_usar := p_texto;
-  IF v_sug IS NULL THEN
+  IF p_sugestao IS NULL OR jsonb_typeof(p_sugestao) <> 'object' THEN
     v_motivo := 'sem_sugestao';
-  ELSE
-    v_verbo := split_part(public.normalizar_nome(v_sug), ' ', 1);
-    v_dig_s := public.somente_digitos(v_sug);
-    v_dig_t := public.somente_digitos(p_texto);
-    IF v_verbo NOT IN ('menu', 'ajuda', 'status', 'leads', 'meus', 'listar', 'inserir', 'pausar',
-                       'despausar', 'reativar', 'excluir', 'sim', 'nao') THEN
-      v_motivo := 'verbo_desconhecido';
-    ELSIF v_dig_s <> '' AND position(v_dig_s IN v_dig_t) = 0
-          AND position(v_dig_s IN '55' || v_dig_t) = 0 THEN
-      v_motivo := 'telefone_inventado';
+  ELSIF v_acao NOT IN ('menu', 'status', 'leads', 'meus_leads', 'listar_vendedores', 'inserir', 'pausar',
+                       'reativar', 'excluir', 'sim', 'nao', 'esclarecer', 'nenhum') THEN
+    v_motivo := 'acao_desconhecida';
+  ELSIF v_acao = 'nenhum' THEN
+    v_motivo := 'nenhum';
+  ELSIF v_tel <> '' AND position(v_tel IN v_dig_t) = 0 AND position(v_tel IN '55' || v_dig_t) = 0 THEN
+    v_motivo := 'telefone_inventado';
+  ELSIF v_acao = 'inserir' AND (v_nome = '' OR position(public.normalizar_nome(v_nome) IN public.normalizar_nome(p_texto)) = 0) THEN
+    v_motivo := 'nome_inventado';
+  ELSIF v_acao = 'esclarecer' THEN
+    IF v_perg = '' THEN
+      v_motivo := 'esclarecer_sem_pergunta';
     ELSE
-      v_usar := v_sug;
-      v_motivo := 'sugestao_usada';
+      -- papel vem da base; desconhecido continua ignorado
+      v_r := public.executar_comando(p_loja_id, p_remetente, 'menu');
+      IF v_r->>'papel' = 'desconhecido' THEN
+        RETURN (v_r::jsonb || jsonb_build_object('interpretado', NULL, 'ia', 'esclarecer'))::json;
+      END IF;
+      DELETE FROM public.comandos_pendentes
+       WHERE loja_id = p_loja_id AND remetente_chave = public.chave_telefone(p_remetente);
+      RETURN json_build_object('papel', v_r->>'papel', 'acao', 'esclarecer',
+                               'resposta', left(v_perg, 300) || E'\n\n(Envie *menu* para ver os comandos.)',
+                               'interpretado', NULL, 'ia', 'esclarecer');
     END IF;
+  ELSE
+    v_usar := CASE v_acao
+      WHEN 'menu'              THEN 'menu'
+      WHEN 'status'            THEN 'status'
+      WHEN 'leads'             THEN 'leads'
+      WHEN 'meus_leads'        THEN 'meus leads'
+      WHEN 'listar_vendedores' THEN 'listar vendedores'
+      WHEN 'inserir'           THEN 'inserir vendedor ' || v_nome || ' ' || v_tel
+      WHEN 'pausar'            THEN 'pausar ' || v_nome || ' ' || v_tel
+      WHEN 'reativar'          THEN 'reativar ' || v_nome || ' ' || v_tel
+      WHEN 'excluir'           THEN 'excluir vendedor ' || v_nome || ' ' || v_tel
+      WHEN 'sim'               THEN 'sim'
+      WHEN 'nao'               THEN 'nao'
+    END;
+    v_motivo := 'sugestao_usada';
   END IF;
 
-  v_r := public.executar_comando(p_loja_id, p_remetente, v_usar);
-  RETURN (v_r::jsonb || jsonb_build_object('interpretado', v_usar, 'ia', v_motivo))::json;
+  v_r := public.executar_comando(p_loja_id, p_remetente, trim(v_usar));
+  RETURN (v_r::jsonb || jsonb_build_object('interpretado', trim(v_usar), 'ia', v_motivo))::json;
 END
 $fn$;
 
@@ -619,7 +654,7 @@ DO $$
 DECLARE f text;
 BEGIN
   FOREACH f IN ARRAY ARRAY['public.executar_comando(uuid, text, text)', 'public._executar_comando_base(uuid, text, text)',
-                           'public.executar_comando_ia(uuid, text, text, text)'] LOOP
+                           'public.executar_comando_ia(uuid, text, text, jsonb)'] LOOP
     EXECUTE 'REVOKE ALL ON FUNCTION ' || f || ' FROM PUBLIC';
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
       EXECUTE 'REVOKE ALL ON FUNCTION ' || f || ' FROM anon';

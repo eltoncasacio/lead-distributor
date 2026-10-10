@@ -16,7 +16,7 @@ import json
 # decisao do dono em 2026-10-10) ou "anthropic" (ANTHROPIC_API_KEY, API direta).
 # O modelo e escolhido pela avaliacao (avaliar.py) — decisao do dono.
 PROVEDOR = "openrouter"
-MODELO = {"openrouter": "anthropic/claude-opus-5.5", "anthropic": "claude-opus-5-5"}[PROVEDOR]
+MODELO = {"openrouter": "anthropic/claude-haiku-5.5", "anthropic": "claude-haiku-5-5"}[PROVEDOR]  # escolha do dono, 2026-10-10
 ESFORCO = "low"          # tarefa curta e fechada: traducao para vocabulario fixo
 MAX_TOKENS = 2048        # cabe o raciocinio em esforco baixo + um JSON pequeno
 
@@ -28,70 +28,94 @@ API_VERSION = "2023-06-01"
 BETA_FALLBACK = "server-side-fallback-2026-07-01"
 
 SYSTEM_PROMPT = """\
-Você traduz mensagens de WhatsApp para comandos de um sistema que distribui
-leads entre os vendedores de uma revenda de veículos. Quem escreve é um
-gerente ou um vendedor da própria loja — nunca um cliente.
+Você interpreta mensagens de WhatsApp para um sistema que distribui leads
+entre os vendedores de uma revenda de veículos. Quem escreve é um gerente ou
+um vendedor da própria loja — nunca um cliente. Você não executa nada: só diz
+qual ação a pessoa pediu. O sistema confere tudo e pede confirmação antes de
+qualquer mudança.
 
-Responda só o comando, no formato exato do vocabulário abaixo, ou string vazia
-quando a mensagem não for um pedido ao sistema.
+AÇÕES DO GERENTE
+  menu               lista de comandos / ajuda
+  status             resumo da loja
+  leads              leads da loja
+  listar_vendedores  quem está na fila
+  inserir            cadastrar vendedor novo (nome + telefone)
+  pausar             vendedor deixa de receber leads por um tempo
+  reativar           vendedor volta a receber leads
+  excluir            vendedor sai da fila de vez
+  sim                confirma o que o sistema acabou de perguntar
+  nao                cancela
 
-VOCABULÁRIO DO GERENTE
-  menu
-  status                       resumo da loja
-  leads                        leads da loja
-  listar vendedores
-  inserir vendedor <Nome> <telefone>
-  pausar <Nome>                o vendedor deixa de receber leads
-  reativar <Nome>              volta a receber leads
-  excluir vendedor <Nome>      sai da fila de vez
-  sim                          confirma o que o sistema acabou de perguntar
-  nao                          cancela
+AÇÕES DO VENDEDOR
+  menu, meus_leads, status (resumo dele), sim, nao
 
-VOCABULÁRIO DO VENDEDOR
-  menu
-  meus leads
-  status                       resumo dele
-  sim
-  nao
+E PARA QUALQUER UM
+  esclarecer         o pedido é para o sistema, mas falta algo para saber o
+                     que fazer: qual vendedor, qual ação, ou mais de um
+                     vendedor serve. Escreva em `pergunta` uma pergunta curta.
+  nenhum             não é pedido ao sistema: saudação, agradecimento,
+                     conversa, assunto de cliente, ou ação que o papel não tem.
+
+CAMPOS
+- nome: para pausar/reativar/excluir, o nome EXATO da lista de vendedores da
+  loja — mesmo que a mensagem use apelido, diminutivo, artigo ("a Giu", "o
+  japinha") ou erro de digitação, desde que só um nome da lista sirva. Se
+  nenhum ou mais de um servir, use esclarecer. Para inserir, o nome como a
+  pessoa escreveu. Nas demais ações, vazio.
+- telefone: só os dígitos que estão na mensagem. Nunca invente, complete ou
+  corrija dígitos. Sem telefone na mensagem, vazio.
+- pergunta: só quando a ação for esclarecer; senão, vazio.
 
 REGRAS
-- Use só o vocabulário do papel de quem escreveu.
-- Nome de vendedor que já existe: escreva exatamente como está na lista de
-  vendedores da loja, mesmo que a mensagem use apelido, diminutivo, minúscula,
-  artigo ("a Giu", "o japinha") ou erro de digitação — desde que só um nome da
-  lista sirva. Se mais de um servir, ou nenhum, escreva o nome como veio.
-- Vendedor novo (inserir): o nome é o que a pessoa escreveu.
-- Telefone: copie só os dígitos que estão na mensagem. Nunca invente,
-  complete ou corrija dígitos. Sem telefone na mensagem, não escreva telefone.
-- "sim", "pode", "isso", "confirma", "manda ver" e afins viram `sim`.
-  "não", "cancela", "deixa", "esquece" e afins viram `nao`.
-- Nunca escreva "confirmar".
-- Saudação, agradecimento, conversa, ou pedido que nenhum comando atende:
-  string vazia.
-- Um pedido só. Se vier mais de um, traduza o primeiro.
+- Nunca invente nome, telefone ou vendedor.
+- pausar x excluir: "tirar da fila", "parar de mandar lead", "dar um tempo",
+  folga, férias, "hoje", "mais cedo" = pausar. excluir SÓ quando a mensagem
+  disser que é definitivo: saiu da empresa, foi demitido, não trabalha mais
+  aqui, ou quando usar o próprio verbo "excluir", "remover" ou "apagar" com
+  o nome do vendedor ("exclui o diego"). Excluir é a ação mais grave — se não estiver
+  explícito que é definitivo, use pausar; se não der para saber, esclarecer.
+- Na dúvida entre duas ações, use esclarecer.
+- "sim", "pode", "isso", "confirma", "manda ver" e afins: sim.
+  "não", "cancela", "deixa", "esquece" e afins: nao.
+- Um pedido só. Se vier mais de um, considere o primeiro.
 """
+
+ACOES = ["menu", "status", "leads", "meus_leads", "listar_vendedores", "inserir", "pausar",
+         "reativar", "excluir", "sim", "nao", "esclarecer", "nenhum"]
 
 SCHEMA = {
     "type": "object",
-    "properties": {"comando": {"type": "string"}},
-    "required": ["comando"],
+    "properties": {
+        "acao": {"type": "string", "enum": ACOES},
+        "nome": {"type": "string"},
+        "telefone": {"type": "string"},
+        "pergunta": {"type": "string"},
+    },
+    "required": ["acao", "nome", "telefone", "pergunta"],
     "additionalProperties": False,
 }
 
+# Nomes ficticios, de outra loja, para nao vazar para a lista real.
 EXEMPLOS = [
-    ("gerente", "pausa a giu aí", "pausar Giu"),
-    ("gerente", "quem tá na fila hoje?", "listar vendedores"),
-    ("gerente", "coloca o Marcos, 19 98123-4567", "inserir vendedor Marcos 19 98123-4567"),
-    ("gerente", "pode", "sim"),
-    ("vendedor", "quais leads são meus?", "meus leads"),
-    ("gerente", "bom dia!", ""),
+    ("gerente", "pausa a bia aí", {"acao": "pausar", "nome": "Bia"}),
+    ("gerente", "quem tá na fila hoje?", {"acao": "listar_vendedores"}),
+    ("gerente", "coloca o Marcos, 19 98123-4567", {"acao": "inserir", "nome": "Marcos", "telefone": "19981234567"}),
+    ("gerente", "tira ele", {"acao": "esclarecer", "pergunta": "Quem você quer tirar da fila?"}),
+    ("gerente", "tira o tonho da fila", {"acao": "pausar", "nome": "Tonho"}),
+    ("gerente", "o tonho saiu da empresa", {"acao": "excluir", "nome": "Tonho"}),
+    ("gerente", "pode", {"acao": "sim"}),
+    ("vendedor", "quais leads são meus?", {"acao": "meus_leads"}),
+    ("gerente", "bom dia!", {"acao": "nenhum"}),
 ]
 
 
 def montar_usuario(texto: str, papel: str, vendedores: list[str]) -> str:
-    exemplos = "\n".join(f'  [{p}] "{t}" -> "{c}"' for p, t, c in EXEMPLOS)
+    def j(d):
+        return json.dumps({"acao": d["acao"], "nome": d.get("nome", ""), "telefone": d.get("telefone", ""),
+                           "pergunta": d.get("pergunta", "")}, ensure_ascii=False)
+    exemplos = "\n".join(f'  [{p}] "{t}" -> {j(c)}' for p, t, c in EXEMPLOS)
     return (
-        f"Exemplos (outra loja, nomes fictícios):\n{exemplos}\n\n"
+        f"Exemplos (outra loja, vendedores Bia e Tonho):\n{exemplos}\n\n"
         f"Vendedores desta loja: {', '.join(vendedores) if vendedores else '(nenhum)'}\n"
         f"Papel de quem escreveu: {papel}\n"
         f"Mensagem:\n{texto}"
@@ -132,15 +156,15 @@ def headers(api_key: str, modelo: str = MODELO, provedor: str = PROVEDOR) -> dic
     return h
 
 
-def extrair_comando(resposta: dict, provedor: str = PROVEDOR) -> str | None:
-    """Comando sugerido, ou None se a resposta nao serve (recusa, corte, JSON
+def extrair_comando(resposta: dict, provedor: str = PROVEDOR) -> dict | None:
+    """Sugestao estruturada {acao, nome, telefone, pergunta}, ou None se a resposta nao serve (recusa, corte, JSON
     invalido). None = o n8n manda o texto original, como sem IA."""
     if provedor == "openrouter":
         try:
             esc = resposta["choices"][0]
             if esc.get("finish_reason") not in ("stop", None):
                 return None
-            return str(json.loads(esc["message"]["content"]).get("comando", "")).strip()
+            return _validar(json.loads(esc["message"]["content"]))
         except (KeyError, IndexError, TypeError, ValueError, AttributeError):
             return None
     if resposta.get("stop_reason") not in ("end_turn", None):
@@ -148,7 +172,13 @@ def extrair_comando(resposta: dict, provedor: str = PROVEDOR) -> str | None:
     for bloco in resposta.get("content", []):
         if bloco.get("type") == "text":
             try:
-                return str(json.loads(bloco["text"]).get("comando", "")).strip()
+                return _validar(json.loads(bloco["text"]))
             except (ValueError, AttributeError):
                 return None
     return None
+
+
+def _validar(d) -> dict | None:
+    if not isinstance(d, dict) or d.get("acao") not in ACOES:
+        return None
+    return {k: str(d.get(k, "") or "").strip() for k in ("acao", "nome", "telefone", "pergunta")}
