@@ -25,7 +25,7 @@ for linha in (RAIZ / ".env").read_text().splitlines():
 TOKEN, LOJA = ENV.get("SUPABASE_ACCESS_TOKEN_PROD"), ENV.get("LOJA_ID")
 if not (TOKEN and LOJA): sys.exit("erro: .env precisa de SUPABASE_ACCESS_TOKEN_PROD e LOJA_ID")
 PROJETO = "drtdctpwxkqqnhnikpwz"
-GERENTE_TESTE = "5519999746219"   # Elton, gerente cadastrado em 09/10
+GERENTE_TESTE = "5519996977453"   # Elton, gerente (numero trocado em 10/10)
 
 
 def sql(q):

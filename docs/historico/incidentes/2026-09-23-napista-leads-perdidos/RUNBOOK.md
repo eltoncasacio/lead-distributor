@@ -235,6 +235,23 @@ Aplicado em 2026-10-10 10:58 BRT, fora da janela 03h–05h, **por decisão expl�
 
 Snapshot anterior: `.n8n_backups/workflow_Qj200sqS9544ao3d_80947913-…_20261010-114042.json`.
 
+## Comandos por WhatsApp ligados no n8n (2026-10-10)
+
+Script: [`docs/dev/fase-a/aplicar_comandos_n8n.py`](../../../dev/fase-a/aplicar_comandos_n8n.py) (simula, `--aplicar`, `--reverter`).
+
+| | `versionId` |
+|---|---|
+| antes | `5b786a18-b4e0-4f9b-821e-2efa106a7306` |
+| depois | `7bffe0f1-136f-4344-bf35-9d95998dc435` |
+
+**O que mudou:** a saída "gerente/vendedor" de `Não É Lead` deixou de ir direto para `Identificar Comando` e passou por três nós novos: `Executar Comando` (RPC `executar_comando`, pela credencial Supabase) → `Comando Legado?` (`acao == legado`) → sim: `Identificar Comando` (inalterado, `status`/`leads` do gerente); não: `Enviar Resposta Comando` (envia o campo `resposta`). Nenhum nó existente foi alterado; o caminho de lead (`Não É Lead` → `Verificar Origem`) não foi tocado — travas do script conferiram.
+
+**Verificado com o celular do dono:** execuções `9171` (`menu`), `9172` (`listar vendedores`) pelo caminho novo e `9173` (`status`) pelo legado, todas com sucesso e resposta entregue.
+
+**O nó `Switch` não é caminho de comando:** fica no ramo de lead e responde "Acessar leads" ao próprio iCarros quando chega template com esse botão, para liberar o lead. Fica como está.
+
+**Gerentes em 10/10:** Renato, Elton (número trocado de `…6219` para `…7453`, o mesmo dos alertas) e `clickbyjota` (`…0204`, adicionado a pedido do dono). Mensagens desses números viram comando, não lead.
+
 ## Arquivos
 
 - `FIX_mensagens_recebidas.sql` / `ROLLBACK_mensagens_recebidas.sql` — Fase 3. **Não aplicados**: DDL não passa pela PostgREST, tem de ser rodado no SQL Editor do Supabase. Não tocam `leads` nem `distribuir_lead`.
