@@ -1,5 +1,6 @@
 -- Desfaz FIX_comandos_whatsapp.sql. Nao mexe em nenhum dado.
 BEGIN;
+DROP FUNCTION IF EXISTS public.executar_comando_ia(uuid, text, text, text);
 DROP FUNCTION IF EXISTS public.executar_comando(uuid, text, text);
 DROP FUNCTION IF EXISTS public._executar_comando_base(uuid, text, text);
 DROP TABLE IF EXISTS public.comandos_pendentes;  -- so pendencias de 5 min, nenhum dado de negocio

@@ -558,11 +558,68 @@ BEGIN
 END
 $fn$;
 
+
+-- ---------------------------------------------------------------------------
+-- 5. Camada de IA: a IA so SUGERE o comando; aqui se decide se a sugestao vale
+-- ---------------------------------------------------------------------------
+-- O n8n manda o texto original e a sugestao da IA (ou NULL, se a IA caiu).
+-- A sugestao so e usada se passar nas travas; senao vale o texto original,
+-- que e exatamente o comportamento sem IA. A IA nunca executa nada: o que ela
+-- sugere passa por executar_comando, com eco e "sim" para qualquer escrita.
+--
+-- Travas:
+--   1. primeira palavra tem de ser um verbo conhecido;
+--   2. "confirmar ..." nunca vem da IA (a confirmacao e do humano);
+--   3. todo digito da sugestao tem de estar no texto original, na mesma ordem
+--      (a IA nao inventa telefone).
+CREATE OR REPLACE FUNCTION public.executar_comando_ia(
+  p_loja_id   uuid,
+  p_remetente text,
+  p_texto     text,
+  p_sugestao  text
+) RETURNS json
+LANGUAGE plpgsql
+SET search_path = public, pg_catalog
+AS $fn$
+DECLARE
+  v_sug    text := nullif(trim(coalesce(p_sugestao, '')), '');
+  v_verbo  text;
+  v_dig_s  text;
+  v_dig_t  text;
+  v_usar   text;
+  v_motivo text;
+  v_r      json;
+BEGIN
+  v_usar := p_texto;
+  IF v_sug IS NULL THEN
+    v_motivo := 'sem_sugestao';
+  ELSE
+    v_verbo := split_part(public.normalizar_nome(v_sug), ' ', 1);
+    v_dig_s := public.somente_digitos(v_sug);
+    v_dig_t := public.somente_digitos(p_texto);
+    IF v_verbo NOT IN ('menu', 'ajuda', 'status', 'leads', 'meus', 'listar', 'inserir', 'pausar',
+                       'despausar', 'reativar', 'excluir', 'sim', 'nao') THEN
+      v_motivo := 'verbo_desconhecido';
+    ELSIF v_dig_s <> '' AND position(v_dig_s IN v_dig_t) = 0
+          AND position(v_dig_s IN '55' || v_dig_t) = 0 THEN
+      v_motivo := 'telefone_inventado';
+    ELSE
+      v_usar := v_sug;
+      v_motivo := 'sugestao_usada';
+    END IF;
+  END IF;
+
+  v_r := public.executar_comando(p_loja_id, p_remetente, v_usar);
+  RETURN (v_r::jsonb || jsonb_build_object('interpretado', v_usar, 'ia', v_motivo))::json;
+END
+$fn$;
+
 -- Chamada so pelo n8n (service_role). Nunca por anon/authenticated.
 DO $$
 DECLARE f text;
 BEGIN
-  FOREACH f IN ARRAY ARRAY['public.executar_comando(uuid, text, text)', 'public._executar_comando_base(uuid, text, text)'] LOOP
+  FOREACH f IN ARRAY ARRAY['public.executar_comando(uuid, text, text)', 'public._executar_comando_base(uuid, text, text)',
+                           'public.executar_comando_ia(uuid, text, text, text)'] LOOP
     EXECUTE 'REVOKE ALL ON FUNCTION ' || f || ' FROM PUBLIC';
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
       EXECUTE 'REVOKE ALL ON FUNCTION ' || f || ' FROM anon';
