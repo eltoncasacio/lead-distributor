@@ -275,6 +275,8 @@ Operação de 2026-10-08/09 (fora de código): vendedor Felipe removido da fila 
 
 - **Decisões do dono (10/10, noite) — não reabrir:** (1) **não rotacionar** a chave `service_role` do Supabase, apesar de ter passado pelo histórico de execuções do n8n e pela conversa; (2) **não recuperar** os leads do período em que a Evolution ficou fora (07–09/10) nem os dois `placeholderMessage` da NaPista; (3) alerta de desconexão da Evolution **por e-mail** para o dono; (4) seguir com Fase A e Fase B.
 
+- **Portaria (IA na entrada) em modo sombra desde 10/10 à noite** — só número novo; não-lead seria ignorado, dúvida distribui. **Revisar em 17/10** com `portaria/relatorio_sombra.py` e decidir se liga. Boas-vindas automáticas: depois. Pendente separado: alerta de "lead não entregue ao vendedor".
+
 **Achado que muda os KPIs por vendedor:** todos os 447 leads desde julho estão com `status_lead = negociando` e nenhum foi atualizado depois de distribuído. **Conversão e funil não têm dado** — ninguém marca venda. Dá para medir hoje: leads recebidos por vendedor, por período e por origem, e tempo desde o último lead. Tempo de resposta também não é registrado. Conversão só passa a existir se o vendedor puder marcar o status — candidato natural a comando de WhatsApp.
 
 **Achado para "quem fez o quê":** `atividades` não tem coluna de autor nem de vendedor (só `tipo` e `descricao`). Registrar autor de comando exige coluna nova.

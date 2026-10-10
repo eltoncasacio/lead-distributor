@@ -1,5 +1,7 @@
 # Portaria — classificação de mensagens
 
+> **STATUS (2026-10-10, noite): MODO SOMBRA em produção** — classifica e grava em `portaria_sombra`, não ignora nada. Prompt em `portaria/prompt.py`; avaliação `portaria/avaliar.py` (Haiku: 0 cliente ignorado, 8/9 não-lead filtrados); relatório `portaria/relatorio_sombra.py`. **Revisão com o dono: 2026-10-17.**
+>
 > ## Desenho v3 (2026-10-10) — VALE ESTE. O resto do documento (v2) fica como histórico.
 >
 > Decisão do dono, depois de conversa em 10/10:

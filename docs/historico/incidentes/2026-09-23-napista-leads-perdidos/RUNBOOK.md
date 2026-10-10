@@ -309,6 +309,18 @@ Achado ao montar o onboarding da segunda loja: loja **sem** linha em `mensagens_
 
 **Verificado antes de aplicar:** o código antigo e o novo rodados localmente (Node) com as mensagens reais da Renato Motors produzem aviso **idêntico** (vendedor com e sem mensagem própria); para loja sem mensagem, o antigo quebra e o novo gera o link com o nome da loja. **Não verificado em produção ainda:** o primeiro lead real depois da mudança — conferir que chegou ao vendedor (`auditoria_producao.py` + execução no n8n).
 
+## Portaria em modo sombra + limpeza da Loja Teste (2026-10-10, noite)
+
+**Loja Teste apagada** (pedido do dono): instância `loja-teste` desconectada e apagada na Evolution; no banco, loja, gerente, vendedor, 2 leads, 6 atividades, contador de IA. O 7453 voltou a ser só o WhatsApp do dono. **Alerta "Lead não distribuído" de volta para o 7453** (`5ce29043` → `92a656f2`) — o 6219 **não tem WhatsApp** (conferido na Evolution: `exists: false` com e sem o nono dígito).
+
+**Achado do teste da Loja Teste — fica pendente:** envio ao vendedor que falha (vendedor com número sem WhatsApp, por exemplo) **não avisa ninguém**: o lead fica com vendedor e o aviso nunca chega. Vale para a Renato Motors. Proposta (não aplicada): alerta "lead não entregue ao vendedor" por e-mail.
+
+**Portaria v3 em modo sombra** (`92a656f2` → `f8823350`; SQL `sql/portaria/FIX_portaria_sombra.sql`). Ramo paralelo na saída "cliente" de `Não É Lead`, abaixo do ramo principal: `Sombra: Preparar` (número novo, com texto, fora de plataforma/equipe, até 200/loja/dia) → `Sombra: IA` (Claude Haiku 5.5 via OpenRouter) → `Sombra: Registrar` (grava em `portaria_sombra` com as travas). **Nada é ignorado**: o lead é distribuído como antes. Todos os nós com continuar-em-falha. Avaliação antes de ligar: 100 mensagens reais rotuladas pelo dono, Haiku 0 cliente ignorado e 8/9 não-lead filtrados (duas rodadas), modelo gratuito idem.
+
+**Não testado com mensagem simulada** — na Renato Motors, mensagem de número novo cria lead real e avisa vendedor. Verificar na primeira mensagem real de número novo (execução no n8n + linha em `portaria_sombra`).
+
+**Revisão marcada: 2026-10-17** — `python3 portaria/relatorio_sombra.py` mostra o que a Portaria teria ignorado; o dono decide se liga de verdade. Reverter: `docs/dev/fase-a/aplicar_portaria_sombra_n8n.py --reverter` e `sql/portaria/ROLLBACK_portaria_sombra.sql`.
+
 ## Arquivos
 
 - `FIX_mensagens_recebidas.sql` / `ROLLBACK_mensagens_recebidas.sql` — Fase 3. **Não aplicados**: DDL não passa pela PostgREST, tem de ser rodado no SQL Editor do Supabase. Não tocam `leads` nem `distribuir_lead`.
