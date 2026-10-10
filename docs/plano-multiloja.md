@@ -257,6 +257,8 @@ Operação de 2026-10-08/09 (fora de código): vendedor Felipe removido da fila 
 
 - **Comandos por WhatsApp em produção (10/10, noite)**, com confirmação por "sim" e IA (Haiku 5.5 via OpenRouter, travas no Postgres, 30 chamadas/pessoa/dia). Ver spec 08 e RUNBOOK.
 
+- **Decisões do dono (10/10, noite) — não reabrir:** (1) **não rotacionar** a chave `service_role` do Supabase, apesar de ter passado pelo histórico de execuções do n8n e pela conversa; (2) **não recuperar** os leads do período em que a Evolution ficou fora (07–09/10) nem os dois `placeholderMessage` da NaPista; (3) alerta de desconexão da Evolution **por e-mail** para o dono; (4) seguir com Fase A e Fase B.
+
 **Achado que muda os KPIs por vendedor:** todos os 447 leads desde julho estão com `status_lead = negociando` e nenhum foi atualizado depois de distribuído. **Conversão e funil não têm dado** — ninguém marca venda. Dá para medir hoje: leads recebidos por vendedor, por período e por origem, e tempo desde o último lead. Tempo de resposta também não é registrado. Conversão só passa a existir se o vendedor puder marcar o status — candidato natural a comando de WhatsApp.
 
 **Achado para "quem fez o quê":** `atividades` não tem coluna de autor nem de vendedor (só `tipo` e `descricao`). Registrar autor de comando exige coluna nova.
