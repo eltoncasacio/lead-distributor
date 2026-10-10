@@ -1,5 +1,7 @@
 -- Desfaz FIX_comandos_whatsapp.sql. Nao mexe em nenhum dado.
 BEGIN;
+DROP FUNCTION IF EXISTS public.reservar_ia(uuid, text, text, int);
+DROP TABLE IF EXISTS public.ia_uso;  -- so contadores de uso da IA
 DROP FUNCTION IF EXISTS public.executar_comando_ia(uuid, text, text, jsonb);
 DROP FUNCTION IF EXISTS public.executar_comando_ia(uuid, text, text, text);
 DROP FUNCTION IF EXISTS public.executar_comando(uuid, text, text);

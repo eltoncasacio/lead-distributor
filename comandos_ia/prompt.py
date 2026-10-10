@@ -19,6 +19,7 @@ PROVEDOR = "openrouter"
 MODELO = {"openrouter": "anthropic/claude-haiku-5.5", "anthropic": "claude-haiku-5-5"}[PROVEDOR]  # escolha do dono, 2026-10-10
 ESFORCO = "low"          # tarefa curta e fechada: traducao para vocabulario fixo
 MAX_TOKENS = 2048        # cabe o raciocinio em esforco baixo + um JSON pequeno
+LIMITE_TEXTO = 300      # so o comeco da mensagem vai para a IA: limita o custo por chamada
 
 URL = {"openrouter": "https://openrouter.ai/api/v1/chat/completions",
        "anthropic": "https://api.anthropic.com/v1/messages"}
@@ -118,7 +119,7 @@ def montar_usuario(texto: str, papel: str, vendedores: list[str]) -> str:
         f"Exemplos (outra loja, vendedores Bia e Tonho):\n{exemplos}\n\n"
         f"Vendedores desta loja: {', '.join(vendedores) if vendedores else '(nenhum)'}\n"
         f"Papel de quem escreveu: {papel}\n"
-        f"Mensagem:\n{texto}"
+        f"Mensagem:\n{texto[:LIMITE_TEXTO]}"
     )
 
 

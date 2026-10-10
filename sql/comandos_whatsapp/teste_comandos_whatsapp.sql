@@ -393,4 +393,46 @@ BEGIN
   RESET ROLE;
 END $$;
 
+-- ---------------------------------------------------------------- limite de uso da IA
+DO $$
+DECLARE A text := '11111111-1111-1111-1111-111111111111'; G text := '5519900000001'; r json; i int;
+BEGIN
+  DELETE FROM ia_uso;
+  -- comando exato nao gasta IA nem conta
+  PERFORM pg_temp.eq((reservar_ia(A::uuid, G, 'Menu')->>'usar'), 'false', 'menu exato');
+  PERFORM pg_temp.eq((reservar_ia(A::uuid, G, 'sim!')->>'motivo'), 'comando_exato', 'sim exato');
+  PERFORM pg_temp.eq((reservar_ia(A::uuid, G, 'listar vendedores')->>'usar'), 'false', 'listar exato');
+  PERFORM pg_temp.eq((reservar_ia(A::uuid, G, 'confirmar pausar Giu 5519911110001')->>'usar'), 'false', 'confirmar exato');
+  PERFORM pg_temp.eq((SELECT count(*) FROM ia_uso)::text, '0', 'exatos nao contam');
+  -- frase livre usa e conta
+  r := reservar_ia(A::uuid, G, 'me mostra a equipe');
+  PERFORM pg_temp.eq(r->>'usar', 'true', 'frase livre usa IA');
+  PERFORM pg_temp.eq(r->>'chamadas_hoje', '1', 'contou 1');
+  -- limite: com p_limite 3, a 4a chamada do dia nao usa
+  PERFORM reservar_ia(A::uuid, G, 'frase dois', 3);
+  PERFORM reservar_ia(A::uuid, G, 'frase tres', 3);
+  r := reservar_ia(A::uuid, G, 'frase quatro', 3);
+  PERFORM pg_temp.eq(r->>'motivo', 'limite_diario', 'limite atingido');
+  PERFORM pg_temp.eq((SELECT chamadas FROM ia_uso WHERE remetente_chave = chave_telefone(G))::text, '3', 'contador para no limite');
+  -- limite e por pessoa: outro gerente ainda pode
+  PERFORM pg_temp.eq((reservar_ia(A::uuid, '5519900000009', 'frase', 3)->>'usar'), 'true', 'outra pessoa nao e afetada');
+  -- e por dia: ontem nao conta
+  UPDATE ia_uso SET dia = dia - 1 WHERE remetente_chave = chave_telefone(G);
+  PERFORM pg_temp.eq((reservar_ia(A::uuid, G, 'frase nova', 3)->>'usar'), 'true', 'dia novo zera');
+  -- sem remetente/texto
+  PERFORM pg_temp.eq((reservar_ia(A::uuid, 'abc', 'oi')->>'usar'), 'false', 'remetente invalido');
+  PERFORM pg_temp.eq((reservar_ia(A::uuid, G, '')->>'usar'), 'false', 'texto vazio');
+  DELETE FROM ia_uso;
+END $$;
+
+DO $$
+BEGIN
+  SET LOCAL ROLE anon;
+  BEGIN
+    PERFORM reservar_ia('11111111-1111-1111-1111-111111111111', '5519900000001', 'oi');
+    RAISE EXCEPTION 'FALHOU: anon executou reservar_ia';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  RESET ROLE;
+END $$;
+
 SELECT 'TODOS OS TESTES PASSARAM' AS resultado;

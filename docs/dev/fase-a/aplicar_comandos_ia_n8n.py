@@ -89,7 +89,7 @@ def montar_js():
         "const usuario = modelo\n"
         "  .split('<<VEND>>').join(nomes.length ? nomes.join(', ') : '(nenhum)')\n"
         "  .split('<<PAPEL>>').join($('Identificar Remetente').item.json.papel || '')\n"
-        "  .split('<<TEXTO>>').join($('Normaliza Dados').item.json.mensagemTexto || '');\n"
+        "  .split('<<TEXTO>>').join(($('Normaliza Dados').item.json.mensagemTexto || '').slice(0, " + str(P.LIMITE_TEXTO) + "));\n"
         "corpo.messages[1].content = usuario;\n"
         "return { json: { corpo } };\n"
     )

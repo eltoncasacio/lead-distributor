@@ -649,12 +649,75 @@ BEGIN
 END
 $fn$;
 
+
+-- ---------------------------------------------------------------------------
+-- 6. Limite de uso da IA (custo)
+-- ---------------------------------------------------------------------------
+-- O n8n pergunta aqui ANTES de chamar a IA. Nao chama quando:
+--   - o texto ja e um comando exato (nao precisa de interpretacao);
+--   - a pessoa passou de 30 chamadas no dia (America/Sao_Paulo).
+-- Sem IA, os comandos digitados continuam funcionando normalmente.
+-- Quem chega aqui ja passou por identificar_remetente (gerente/vendedor).
+CREATE TABLE IF NOT EXISTS public.ia_uso (
+  loja_id          uuid NOT NULL REFERENCES public.lojas(id) ON DELETE CASCADE,
+  remetente_chave  text NOT NULL,
+  dia              date NOT NULL,
+  chamadas         int  NOT NULL DEFAULT 0,
+  PRIMARY KEY (loja_id, remetente_chave, dia)
+);
+ALTER TABLE public.ia_uso ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon')
+     AND NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'ia_uso') THEN
+    EXECUTE 'CREATE POLICY "Deny all for anon" ON public.ia_uso FOR ALL TO anon USING (false)';
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.reservar_ia(
+  p_loja_id   uuid,
+  p_remetente text,
+  p_texto     text,
+  p_limite    int DEFAULT 30
+) RETURNS json
+LANGUAGE plpgsql
+SET search_path = public, pg_catalog
+AS $fn$
+DECLARE
+  v_chave text := public.chave_telefone(p_remetente);
+  v_txt   text := trim(translate(public.normalizar_nome(p_texto), '.,!?;:', ''));
+  v_dia   date := (now() AT TIME ZONE 'America/Sao_Paulo')::date;
+  v_n     int;
+BEGIN
+  IF p_loja_id IS NULL OR v_chave IS NULL OR v_txt = '' THEN
+    RETURN json_build_object('usar', false, 'motivo', 'sem_remetente_ou_texto');
+  END IF;
+  IF v_txt IN ('menu', 'ajuda', 'help', 'status', 'leads', 'meus leads', 'listar vendedores',
+               'sim', 's', 'nao', 'n', 'ok', 'pode', 'confirma', 'cancela', 'cancelar')
+     OR v_txt LIKE 'confirmar %' THEN
+    RETURN json_build_object('usar', false, 'motivo', 'comando_exato');
+  END IF;
+
+  INSERT INTO public.ia_uso AS u (loja_id, remetente_chave, dia, chamadas)
+  VALUES (p_loja_id, v_chave, v_dia, 1)
+  ON CONFLICT (loja_id, remetente_chave, dia)
+  DO UPDATE SET chamadas = u.chamadas + 1 WHERE u.chamadas < p_limite
+  RETURNING chamadas INTO v_n;
+
+  IF v_n IS NULL THEN
+    RETURN json_build_object('usar', false, 'motivo', 'limite_diario');
+  END IF;
+  RETURN json_build_object('usar', true, 'motivo', 'ok', 'chamadas_hoje', v_n);
+END
+$fn$;
+
 -- Chamada so pelo n8n (service_role). Nunca por anon/authenticated.
 DO $$
 DECLARE f text;
 BEGIN
   FOREACH f IN ARRAY ARRAY['public.executar_comando(uuid, text, text)', 'public._executar_comando_base(uuid, text, text)',
-                           'public.executar_comando_ia(uuid, text, text, jsonb)'] LOOP
+                           'public.executar_comando_ia(uuid, text, text, jsonb)',
+                           'public.reservar_ia(uuid, text, text, int)'] LOOP
     EXECUTE 'REVOKE ALL ON FUNCTION ' || f || ' FROM PUBLIC';
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
       EXECUTE 'REVOKE ALL ON FUNCTION ' || f || ' FROM anon';
@@ -673,6 +736,12 @@ BEGIN
   -- explicito: nao depender do default privileges do Supabase para tabela nova
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
     EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.comandos_pendentes TO service_role';
+  END IF;
+  EXECUTE 'REVOKE ALL ON public.ia_uso FROM PUBLIC';
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN EXECUTE 'REVOKE ALL ON public.ia_uso FROM anon'; END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN EXECUTE 'REVOKE ALL ON public.ia_uso FROM authenticated'; END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.ia_uso TO service_role';
   END IF;
 END $$;
 
