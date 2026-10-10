@@ -100,7 +100,7 @@ BEGIN
   PERFORM pg_temp.ok(pg_temp.resp(A, '5519900000001', 'menu') LIKE '%inserir vendedor%', 'menu do gerente');
   PERFORM pg_temp.ok(pg_temp.resp(A, '5519911110001', 'menu') NOT LIKE '%inserir vendedor%', 'menu do vendedor nao oferece escrita');
   PERFORM pg_temp.eq(pg_temp.acao(A, '5519900000001', 'bla bla'), 'erro', 'comando desconhecido');
-  PERFORM pg_temp.eq(pg_temp.acao(A, '5519900000001', ''), 'info', 'texto vazio vira menu');
+  PERFORM pg_temp.eq(pg_temp.acao(A, '5519900000001', ''), 'ignorado', 'texto vazio e ignorado (foto/audio)');
 END $$;
 
 -- ---------------------------------------------------------------- inserir
@@ -469,6 +469,18 @@ BEGIN
   DELETE FROM gerentes WHERE numero_whatsapp IN ('5519977700001', '5519977700004');
   DELETE FROM vendedores WHERE numero_whatsapp LIKE '55199777000%';
   DELETE FROM ia_uso;
+END $$;
+
+-- ---------------------------------------------------------------- sem texto = silencio
+DO $$
+DECLARE A text := '11111111-1111-1111-1111-111111111111'; r json;
+BEGIN
+  r := executar_comando(A::uuid, '5519900000001', '');
+  PERFORM pg_temp.eq(r->>'acao', 'ignorado', 'texto vazio ignorado');
+  PERFORM pg_temp.ok(r->>'resposta' IS NULL, 'texto vazio sem resposta');
+  PERFORM pg_temp.eq(executar_comando(A::uuid, '5519900000001', NULL)->>'acao', 'ignorado', 'texto nulo ignorado');
+  PERFORM pg_temp.eq(executar_comando(A::uuid, '5519900000001', E'  \n ')->>'acao', 'ignorado', 'so espacos ignorado');
+  PERFORM pg_temp.eq(executar_comando_ia(A::uuid, '5519900000001', '', NULL)->>'acao', 'ignorado', 'vazio via IA ignorado');
 END $$;
 
 SELECT 'TODOS OS TESTES PASSARAM' AS resultado;

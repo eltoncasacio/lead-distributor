@@ -201,8 +201,11 @@ BEGIN
   v_orig := array_remove(string_to_array(
               translate(coalesce(p_texto, ''), chr(9) || chr(10) || chr(13) || chr(160), '    '),
               ' '), '');
+  -- Sem texto (foto, audio, figurinha, album): silencio. Antes respondia o
+  -- menu — um album de 27 fotos do gerente virou 27 menus (execucoes
+  -- 9190-9216, 2026-10-10).
   IF coalesce(array_length(v_orig, 1), 0) = 0 THEN
-    v_orig := ARRAY['menu'];
+    RETURN public._cmd_resp(v_papel, 'ignorado', NULL);
   END IF;
   SELECT array_agg(public.normalizar_nome(t) ORDER BY o) INTO v_norm
     FROM unnest(v_orig) WITH ORDINALITY AS u(t, o);
