@@ -13,7 +13,7 @@
 | Item | Para quê | Observação |
 |---|---|---|
 | **Um segundo número de WhatsApp**, num celular | é o "WhatsApp da loja fake", onde os clientes escrevem | qualquer chip; WhatsApp comum ou Business |
-| **Chave GLOBAL da Evolution** (`AUTHENTICATION_API_KEY` do servidor `evolution.yavoh.cloud`) | criar a instância nova | **foi esquecida** (ver handoff). Recuperar nas variáveis de ambiente do servidor/painel onde a Evolution roda. Sem ela não se cria instância — a chave de instância da Renato Motors não serve |
+| **Chave GLOBAL da Evolution** (`AUTHENTICATION_API_KEY` do servidor `evolution.yavoh.cloud`) | criar a instância nova | **recuperada em 10/10**: está em `EVOLUTION_GLOBAL_KEY` no `.env`. Origem: Portainer (https://portainer.yavoh.cloud) → container da Evolution → Env → `AUTHENTICATION_API_KEY`. Também dá acesso ao painel https://evolution.yavoh.cloud/manager. A chave de instância da Renato Motors não serve para criar instância |
 | **Número do gerente** | administrar a loja pelo WhatsApp | o seu (`…7453`) serve: o mesmo número pode ser gerente em duas lojas (provado na Fase B) |
 | **Um celular de "vendedor"** | receber o lead | um número que você controle e que **não** seja o da loja fake |
 | **Um celular de "cliente"** | mandar a mensagem de teste | qualquer número que não esteja cadastrado na loja fake |
