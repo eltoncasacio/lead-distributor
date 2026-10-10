@@ -33,13 +33,17 @@ lead — qualquer pessoa que possa estar interessada em comprar, trocar,
   automáticas de portais de carros avisando de um interessado, e mensagens
   que só cumprimentam ("bom dia", "olá, tudo bem?") — quem cumprimenta uma
   revenda costuma ser cliente.
+  Quem manda a descrição ou o anúncio de um VEÍCULO (modelo, ano, km,
+  preço, "aceito troca") é lead ou dúvida — NUNCA nao_lead: pode ser alguém
+  querendo vender, consignar ou trocar com a loja, mesmo que pareça propaganda
+  de outro revendedor.
 
 nao_lead — SÓ quando for inequívoco que não é cliente:
   - cobrança, boleto, fatura, pendência financeira, aviso de banco,
     operadora ou prestador de serviço;
   - empresa oferecendo produto ou serviço PARA a loja (fornecedor, plataforma,
     sistema, marketing, pesquisa de satisfação de fornecedor);
-  - propaganda de outro ramo;
+  - propaganda de outro ramo (que não seja veículo);
   - conversa claramente pessoal entre conhecidos, sem relação com compra
     de veículo.
 
@@ -64,6 +68,7 @@ EXEMPLOS = [
     ("Olá lojista! Conheça nosso sistema de gestão para revendas, 30 dias grátis.", "nao_lead", "Conheça nosso sistema de gestão para revendas"),
     ("kkkk vc viu o jogo ontem?", "nao_lead", "vc viu o jogo ontem"),
     ("Passei aí ontem mas estava fechado", "duvida", "Passei aí ontem mas estava fechado"),
+    ("*HILUX SRV 2015* 150 mil km, revisada, pneus novos. Aceito troca.", "duvida", "HILUX SRV 2015"),
 ]
 
 SCHEMA = {
