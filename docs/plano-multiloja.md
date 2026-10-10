@@ -255,6 +255,8 @@ Operação de 2026-10-08/09 (fora de código): vendedor Felipe removido da fila 
 - **Foco definido pelo dono (2026-10-10): só o core — multi-loja, comandos por WhatsApp e distribuição.** KPIs por vendedor ficam fora: não há como saber se o lead foi vendido e os vendedores não vão registrar.
 - **Cliente que escreve de novo vira lead novo (~9% dos leads): decidido não mexer** (dono, 2026-10-10). Medição e causa em [05-deduplicacao](specs/regras-de-negocio/05-deduplicacao.md).
 
+- **Comandos por WhatsApp em produção (10/10, noite)**, com confirmação por "sim" e IA (Haiku 5.5 via OpenRouter, travas no Postgres, 30 chamadas/pessoa/dia). Ver spec 08 e RUNBOOK.
+
 **Achado que muda os KPIs por vendedor:** todos os 447 leads desde julho estão com `status_lead = negociando` e nenhum foi atualizado depois de distribuído. **Conversão e funil não têm dado** — ninguém marca venda. Dá para medir hoje: leads recebidos por vendedor, por período e por origem, e tempo desde o último lead. Tempo de resposta também não é registrado. Conversão só passa a existir se o vendedor puder marcar o status — candidato natural a comando de WhatsApp.
 
 **Achado para "quem fez o quê":** `atividades` não tem coluna de autor nem de vendedor (só `tipo` e `descricao`). Registrar autor de comando exige coluna nova.
