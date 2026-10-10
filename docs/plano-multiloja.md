@@ -212,6 +212,39 @@ Só quando houver o terceiro cliente. Antes disso, fatura manual resolve e custa
 4. **D** por último, herdando o que C definiu.
 5. **F** só com o terceiro cliente.
 
+## Decisões e achados de 2026-10-09
+
+### Decisão: manter a Evolution por enquanto
+
+Avaliada a troca para a API oficial da Meta ou para o Twilio. **Decisão do dono: manter a Evolution e só migrar se a dor realmente aparecer.** Registrado o que foi levantado, para não refazer:
+
+- **Custo não decide.** Volume real: 113 a 310 leads/mês (set/2026: 113). Estimativa por loja/mês, com premissas minhas (150 leads, ~400 mensagens recebidas, ~60 alertas/respostas, câmbio ~R$ 5,5): Twilio ≈ US$ 5–7 se o template for classificado como utilidade, ≈ US$ 13 se for marketing; Meta direto ≈ US$ 1,5–4. O volume de mensagens recebidas é palpite — `mensagens_recebidas` só existe desde 23/09.
+- **Preços confirmados:** Twilio cobra US$ 0,005 por mensagem recebida ou enviada, além da tarifa da Meta. **Não confirmado:** a tarifa da Meta para o Brasil; fontes de terceiros divergem (utilidade ≈ US$ 0,008–0,022; marketing ≈ US$ 0,0625).
+- **O que pesa é onboarding**, não preço: verificação da empresa e revisão do app na Meta antes de usar o Embedded Signup; templates aprovados para avisar vendedor que nunca escreveu ao número; o número da loja sai do aplicativo, a menos que a coexistência (listada como disponível no Brasil por fontes de terceiros, elegibilidade caso a caso) se aplique.
+- **Ponto de encaixe para a troca futura:** o nó `Normaliza Dados` converte o payload da Evolution em campos padrão. Um webhook novo com normalizador próprio que produza os mesmos campos, mais a troca dos envios `sendText`, permitiria uma loja no canal oficial sem mexer na Renato Motors. Guardar o canal por loja em `lojas`.
+- **Gatilho para reabrir a decisão:** `placeholderMessage` ou queda de conexão passarem a custar leads, ou a segunda loja entrar.
+
+### Achados da auditoria de 2026-10-09
+
+Ainda **não corrigidos**. Ordem de urgência:
+
+1. **CONFIRMADO em 2026-10-09: a Evolution está desconectada.** A última execução do n8n é a `9136` (07/10 22:29 UTC = 19:29 BRT), um `connection.update` com `state: close` e `statusReason: 401` (sessão desligada do aparelho). Depois disso não entrou nenhum webhook; `connectionState` da instância `renato-motors` devolve `close`. Leads entre 07/10 19:29 BRT e a reconexão não chegaram ao sistema. O alerta de desconexão **nem foi enviado**: `Montar Alerta` rodou e montou o texto, mas no workflow ao vivo ele **não tem nenhuma conexão de saída** (`main: [[]]`) — o 'Passo 0' do RUNBOOK não está aplicado. Mesmo ligado, sairia pela instância que caiu (ver [fase-a-tirar-hardcodes-n8n.md](dev/fase-a-tirar-hardcodes-n8n.md)). **Reconectado no mesmo dia (09/10 ~20:45 UTC); distribuição voltou a funcionar (teste, execução `9140`).** Leads do período parado ainda não recuperados. Detalhes no [RUNBOOK](historico/incidentes/2026-09-23-napista-leads-perdidos/RUNBOOK.md).
+2. **Chave `service_role` do Supabase escrita no nó `Normaliza Dados`** (campo `supabaseKey`). Qualquer pessoa com acesso ao editor, a uma exportação ou a um backup do workflow tem acesso total ao banco de todas as lojas. Não estava na lista da Fase A. Entra como item da Fase A: mover para credencial do n8n.
+3. **Segundo caminho de comando não documentado:** o nó `Switch` reage a clique no botão "Acessar leads" dos templates (lendo `quickReplyButton.displayText`) e responde pelo nó `Acessar Leads`. Não consta no spec 08. Mapear o que o alimenta antes de separar gerente de vendedor no roteamento.
+4. **Lead possivelmente enviado em duplicidade:** em 06/10 15:57 há duas atividades "Lead de F. L. B. (cliente) encaminhado para Felipe". Não foi verificado se o vendedor recebeu duas mensagens.
+5. **Só há 1 gerente ativo**, e o número que recebe os alertas (o do dono) provavelmente não é gerente cadastrado, então uma mensagem dele para a loja seria tratada como cliente. Relevante para a regra "não remover o último gerente" e para decidir se o dono administra por comando.
+6. **`identificar_remetente` é executável por `anon`** (spec 02). As RPCs novas de comando devem nascer sem permissão para `anon`.
+7. **96 mensagens pendentes de revisão** na Triagem, sem ninguém tratando.
+8. **Testes cobrem só o isolamento de `utils/queries.py`** (28, passando). RPCs do banco e n8n não têm teste; a RPC de comandos exige a loja de teste da Fase B para ter algum.
+
+Operação de 2026-10-08/09 (fora de código): vendedor Felipe removido da fila e Japa reativado, via `alterar_status_vendedor`; o registro está em `atividades`.
+
+### Ordem ajustada
+
+1. Confirmar que o sistema está recebendo mensagens (achado 1).
+2. Corrigir o vazamento do vendedor (`comando_leads`/`comando_status` sem escopo por remetente) e construir os comandos por WhatsApp, em branch própria — ver [spec 08](specs/tecnica/08-comandos-whatsapp.md).
+3. Fase A, agora incluindo a chave fixa (achado 2); Fase B antes de qualquer segunda loja.
+
 ## O passo que não é código
 
 **Conseguir a segunda loja.** Uma loja real, pagando ou em teste. Sem ela, cadastro, planos e isolamento são construídos no escuro, adivinhando o que o cliente precisa.

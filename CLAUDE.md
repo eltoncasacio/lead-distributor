@@ -16,6 +16,7 @@ Dashboard Web (Streamlit) de um sistema de distribuição de leads de WhatsApp p
 
 Por isso, antes de propor qualquer coisa:
 
+0. **Leia [docs/dev/handoff-2026-10-10.md](docs/dev/handoff-2026-10-10.md)** — o que foi feito na última sessão, o que está em produção e o que está só no repo, e os próximos passos em ordem. É o ponto de retomada dos comandos por WhatsApp.
 1. **Rode a auditoria** — `python3 auditoria_producao.py`. Em 5 segundos responde se o sistema está distribuindo, qual o ritmo de leads, se a fila está coerente e **se alguma origem parou de dar sinal**. É a foto do estado real, não do estado documentado.
 2. **Leia [docs/plano-multiloja.md](docs/plano-multiloja.md)** — o roteiro vigente, com as fases, o que já foi feito e o que falta. É onde as decisões de rumo ficam registradas.
 3. **Leia o [RUNBOOK do incidente NaPista](docs/historico/incidentes/2026-09-23-napista-leads-perdidos/RUNBOOK.md) e o [ACEITE](docs/historico/incidentes/2026-09-23-napista-leads-perdidos/ACEITE.md)** — o que foi aplicado em produção, com `versionId`, e principalmente **o que foi deixado sem testar de propósito**.
@@ -35,7 +36,7 @@ Diagnóstico que se provou errado **não se apaga**: corrige-se com a data e o m
 
 ### Credenciais
 
-Nenhuma credencial vive no repositório. O `.env` (fora do git) tem `SUPABASE_URL` e `SUPABASE_SERVICE_KEY`. Chave da API do n8n e do MCP são **coisas diferentes e não intercambiáveis** — o MCP do n8n só lê, não escreve workflow. Se precisar escrever no n8n, peça a chave da API pública ao dono; ela não está em lugar nenhum do projeto.
+Nenhuma credencial vive no repositório. O `.env` (fora do git) tem `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` e, desde 2026-10-10, `N8N_API_KEY` (chave da API **pública** do n8n, `aud: public-api`, expira em 2026-11-09). Chave da API do n8n e do MCP são **coisas diferentes e não intercambiáveis** — o MCP do n8n só lê, não escreve workflow. Se `N8N_API_KEY` estiver ausente ou vencida, peça uma nova ao dono — para ele gravar no `.env`, não colar no chat.
 
 ## Regra mais importante: não invente regras nem funcionalidades
 

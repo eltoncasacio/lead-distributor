@@ -2,9 +2,9 @@
 
 > Consolida `Fora do Escopo/Roadmap Futuro.md` e `IDEIAS_MELHORIA.md` do projeto original. Nada aqui está implementado, salvo nota em contrário. Quando o usuário trouxer as próximas mudanças de regra de negócio, revisar esta lista primeiro.
 
-## Já parcialmente construído, mas não implantado
+## Ideias que pareciam já parcialmente construídas (corrigido)
 
-- **Lembrete diário de leads pendentes** — existe um workflow n8n pronto ("Lembrete Leads Pendentes (Diário)"), que avisa cada vendedor sobre leads parados, mas está **desativado**. É parecido, mas não igual, à ideia de "relatório automático para o gerente" abaixo (esse é lembrete individual ao vendedor, não um resumo consolidado ao gerente).
+- **Lembrete diário de leads pendentes** — uma versão anterior deste documento afirmava que já existia um workflow n8n pronto ("Lembrete Leads Pendentes (Diário)"), desativado, avisando vendedores sobre leads parados. Verificado ao vivo em 2026-09-11 (`n8n_list_workflows`): esse workflow **não existe** — só há 1 workflow no n8n (`Renato Motors Amarrar Lead`). Continua sendo uma ideia de roadmap válida (parecida, mas não igual, à ideia de "relatório automático para o gerente" abaixo — esse seria um lembrete individual ao vendedor, não um resumo consolidado), só que do zero, não "pronta aguardando ativação". Ver [historico/AUDITORIA_COMERCIAL_2026-09-11.md](historico/AUDITORIA_COMERCIAL_2026-09-11.md#2-achado-confirmado-divergência-sobre-o-workflow-lembrete-leads-pendentes).
 
 ## Inteligência e automação
 

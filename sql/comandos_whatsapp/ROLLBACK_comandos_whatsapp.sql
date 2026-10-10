@@ -1,0 +1,12 @@
+-- Desfaz FIX_comandos_whatsapp.sql. Nao mexe em nenhum dado.
+BEGIN;
+DROP FUNCTION IF EXISTS public.executar_comando(uuid, text, text);
+DROP INDEX IF EXISTS public.uq_vendedores_loja_nome;
+DROP INDEX IF EXISTS public.uq_vendedores_loja_telefone;
+DROP FUNCTION IF EXISTS public._cmd_resp(text, text, text);
+DROP FUNCTION IF EXISTS public.formatar_telefone(text);
+DROP FUNCTION IF EXISTS public.chave_telefone(text);
+DROP FUNCTION IF EXISTS public.normalizar_telefone_br(text);
+DROP FUNCTION IF EXISTS public.somente_digitos(text);
+DROP FUNCTION IF EXISTS public.normalizar_nome(text);
+COMMIT;

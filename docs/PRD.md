@@ -66,7 +66,7 @@ Ver [roadmap.md](roadmap.md) para a lista completa de ideias futuras. Destaques 
 - Merge manual de clientes que trocam de número.
 - SLA e fechamento automático de lead.
 
-Existe um workflow separado, **"Lembrete Leads Pendentes (Diário)"**, já construído (lembra vendedores com leads parados) mas **desativado** em produção — não é uma feature "fora de escopo" por decisão de produto, é um recurso pronto aguardando ativação.
+Uma versão anterior deste documento (mesma data) citava um segundo workflow n8n, "Lembrete Leads Pendentes (Diário)", já construído mas desativado. Verificado ao vivo em 2026-09-11 na auditoria comercial (`n8n_list_workflows`, sem filtro e com `active:false`): **esse workflow não existe** — há apenas 1 workflow no ambiente n8n conectado (`Renato Motors Amarrar Lead`). A afirmação anterior estava incorreta e foi removida. Ver [historico/AUDITORIA_COMERCIAL_2026-09-11.md](historico/AUDITORIA_COMERCIAL_2026-09-11.md#2-achado-confirmado-divergência-sobre-o-workflow-lembrete-leads-pendentes).
 
 ## 8. Métricas relevantes hoje
 
