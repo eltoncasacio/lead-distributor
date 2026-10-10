@@ -1,163 +1,139 @@
-"""Portaria — prompt, schema e travas. FONTE UNICA.
+"""Portaria v3 — prompt, schema e travas. FONTE UNICA.
 
-O documento [docs/specs/tecnica/07-portaria-classificacao.md] explica o
-raciocinio; este arquivo e o que efetivamente roda. Se os dois divergirem,
-**este arquivo ganha** e o documento e que esta errado — foi divergencia entre
-doc e sistema que gerou a auditoria de 2026-09-11.
+Desenho (docs/specs/tecnica/07-portaria-classificacao.md, topo): so a mensagem
+de NUMERO NOVO (nunca foi lead desta loja) passa por aqui. A IA responde se e
+lead; `nao_lead` e ignorado (gravado em silencio), `lead` e `duvida`
+distribuem. Erro, recusa, timeout ou resposta invalida = duvida = distribui.
 
-O mesmo prompt e schema usados aqui devem ser os colados no no do n8n. Quando
-mudar aqui, mude la, e rode `portaria/avaliar.py` de novo antes de subir.
+O unico erro caro e chamar de `nao_lead` um cliente. Por isso:
+  - o prompt manda usar `nao_lead` so quando for inequivoco;
+  - a trava (codigo, nao prompt) exige trecho LITERAL da mensagem para
+    `nao_lead` — sem isso vira `duvida`.
+
+Mudou aqui: rode `portaria/avaliar.py` antes de levar ao n8n.
+(A versao v2, com 4 categorias e extracao de telefone, esta no historico do git
+e na secao "Desenho v2" do spec.)
 """
+import json
 
-MODELO = "claude-opus-5"
+PROVEDOR = "openrouter"
+MODELO = "anthropic/claude-haiku-5.5"      # producao (barato). Iteracao: modelos :free
+ESFORCO = "low"
+MAX_TOKENS = 1024
+LIMITE_TEXTO = 500
+URL = "https://openrouter.ai/api/v1/chat/completions"
 
 SYSTEM_PROMPT = """\
-Você classifica mensagens que chegam no WhatsApp de uma revenda de veículos
-usados no interior de São Paulo. Decida em qual categoria a mensagem se
-encaixa e extraia o que der.
+Você lê a PRIMEIRA mensagem que um número desconhecido mandou para o WhatsApp
+de uma revenda de veículos usados, e diz se é um possível cliente (lead).
 
-CATEGORIAS
+lead — qualquer pessoa que possa estar interessada em comprar, trocar,
+  financiar, vender ou consignar um veículo, ou que pergunta algo à loja
+  (estoque, preço, disponibilidade, endereço, horário). Inclui mensagens
+  automáticas de portais de carros avisando de um interessado, e mensagens
+  que só cumprimentam ("bom dia", "olá, tudo bem?") — quem cumprimenta uma
+  revenda costuma ser cliente.
 
-lead_novo — pessoa interessada em comprar, trocar, financiar ou vender um
-  veículo para a loja. Inclui quem pergunta sobre um anúncio, pede simulação,
-  oferece o próprio carro em troca ou consignação, ou pergunta se aprova
-  financiamento no nome dela.
+nao_lead — SÓ quando for inequívoco que não é cliente:
+  - cobrança, boleto, fatura, pendência financeira, aviso de banco,
+    operadora ou prestador de serviço;
+  - empresa oferecendo produto ou serviço PARA a loja (fornecedor, plataforma,
+    sistema, marketing, pesquisa de satisfação de fornecedor);
+  - propaganda de outro ramo;
+  - conversa claramente pessoal entre conhecidos, sem relação com compra
+    de veículo.
 
-pos_venda — pessoa que JÁ COMPROU desta loja e escreve sobre revisão,
-  garantia, documentação, emplacamento ou pós-venda. O sinal é passado:
-  "comprei", "peguei o carro", "da minha compra".
+duvida — quando não der para ter certeza. Na dúvida entre lead e nao_lead,
+  responda duvida: a mensagem será tratada como lead.
 
-nao_lead — não é cliente em potencial. Cobrança, boleto, fatura, aviso de
-  banco ou operadora, marketing, oferta comercial B2B, corretor de outro
-  ramo, engano de número.
+CUSTO ASSIMÉTRICO: chamar de nao_lead um cliente faz a loja perder a venda e o
+cliente nunca ser respondido. Mandar uma mensagem que não era cliente para o
+vendedor custa trinta segundos dele. Use nao_lead só com convicção.
 
-incerto — use sempre que não tiver convicção. Não force uma categoria.
-
-REGRA DE CUSTO ASSIMÉTRICO
-
-Errar chamando de nao_lead uma mensagem que era cliente faz a loja perder
-uma venda e o cliente nunca ser respondido. Errar mandando ruído para um
-vendedor custa trinta segundos de atenção dele. Na dúvida, escolha incerto.
-Só use nao_lead quando a mensagem for inequivocamente comercial ou
-automática.
-
-EVIDÊNCIA
-
-Em trecho_evidencia, copie um pedaço LITERAL da mensagem que justifica sua
-decisão — caracteres exatos, sem parafrasear. Se não conseguir citar um
-trecho literal, use incerto.
-
-TELEFONE
-
-Só preencha telefone_cliente se um número aparecer escrito na mensagem.
-Nunca deduza, nunca complete, nunca invente. Sem número escrito, use null.\
+EVIDÊNCIA: em trecho_evidencia, copie um pedaço LITERAL da mensagem (os mesmos
+caracteres, sem parafrasear) que justifica a decisão. Para nao_lead isso é
+obrigatório; se não conseguir citar, responda duvida.
 """
 
-# Exemplos reais da Renato Motors. Ver o spec para a origem de cada um.
-FEW_SHOT = [
-    ("Olá! Tenho interesse e queria mais informações, por favor.",
-     {"classificacao": "lead_novo", "intencao": "comprar", "confianca": 0.93,
-      "motivo": "demonstra interesse e pede informações",
-      "categoria_nao_lead": None, "nome_cliente": None, "telefone_cliente": None,
-      "anuncio": None, "trecho_evidencia": "Tenho interesse e queria mais informações"}),
-    ("Trnho interesse no fusion, fariam permuta?",
-     {"classificacao": "lead_novo", "intencao": "vender_ou_trocar", "confianca": 0.95,
-      "motivo": "interesse em veículo com proposta de permuta",
-      "categoria_nao_lead": None, "nome_cliente": None, "telefone_cliente": None,
-      "anuncio": "Fusion", "trecho_evidencia": "interesse no fusion, fariam permuta"}),
-    ("Tenho um kia soul 2015",
-     {"classificacao": "lead_novo", "intencao": "vender_ou_trocar", "confianca": 0.71,
-      "motivo": "oferece o próprio carro — consignação ou troca",
-      "categoria_nao_lead": None, "nome_cliente": None, "telefone_cliente": None,
-      "anuncio": None, "trecho_evidencia": "Tenho um kia soul 2015"}),
-    ("Bom dia, aqui é o Josiel que comprou o Palio na sexta-feira, preciso "
-     "fazer aquela revisãozinha para ativar a garantia dele",
-     {"classificacao": "pos_venda", "intencao": "servico", "confianca": 0.96,
-      "motivo": "já comprou e pede revisão de garantia",
-      "categoria_nao_lead": None, "nome_cliente": "Josiel", "telefone_cliente": None,
-      "anuncio": None, "trecho_evidencia": "que comprou o Palio na sexta-feira"}),
-    ("Olá! Informamos que sua fatura já está disponível, com vencimento em "
-     "11/05. O boleto foi enviado para o seu e-mail",
-     {"classificacao": "nao_lead", "intencao": "outro", "confianca": 0.97,
-      "motivo": "aviso automático de cobrança",
-      "categoria_nao_lead": "cobranca", "nome_cliente": None, "telefone_cliente": None,
-      "anuncio": None, "trecho_evidencia": "sua fatura já está disponível, com vencimento"}),
-    ("Oiee, eu sou a Josi e estou em um pré-lançamento de apartamentos no "
-     "Bairro Parque Gabriel em Hortolândia-SP",
-     {"classificacao": "nao_lead", "intencao": "outro", "confianca": 0.95,
-      "motivo": "marketing de outro ramo",
-      "categoria_nao_lead": "marketing", "nome_cliente": "Josi", "telefone_cliente": None,
-      "anuncio": None, "trecho_evidencia": "pré-lançamento de apartamentos"}),
+# Exemplos ficticios, de proposito fora da amostra de avaliacao.
+EXEMPLOS = [
+    ("Boa tarde, ainda tem aquele Corolla prata do anúncio?", "lead", "ainda tem aquele Corolla prata"),
+    ("oi tudo bem", "lead", "oi tudo bem"),
+    ("Quero vender meu Gol 2018, vocês avaliam?", "lead", "Quero vender meu Gol 2018"),
+    ("Sua fatura de internet vence amanhã. Pague pelo app e evite juros.", "nao_lead", "Sua fatura de internet vence amanhã"),
+    ("Olá lojista! Conheça nosso sistema de gestão para revendas, 30 dias grátis.", "nao_lead", "Conheça nosso sistema de gestão para revendas"),
+    ("kkkk vc viu o jogo ontem?", "nao_lead", "vc viu o jogo ontem"),
+    ("Passei aí ontem mas estava fechado", "duvida", "Passei aí ontem mas estava fechado"),
 ]
 
 SCHEMA = {
     "type": "object",
-    "additionalProperties": False,
-    "required": ["classificacao", "intencao", "confianca", "motivo",
-                 "categoria_nao_lead", "nome_cliente", "telefone_cliente",
-                 "anuncio", "trecho_evidencia"],
     "properties": {
-        "classificacao": {"enum": ["lead_novo", "pos_venda", "nao_lead", "incerto"]},
-        "intencao": {"enum": ["comprar", "vender_ou_trocar", "servico", "outro"]},
-        "confianca": {"type": "number", "minimum": 0, "maximum": 1},
-        "motivo": {"type": "string", "maxLength": 140},
-        "categoria_nao_lead": {"type": ["string", "null"],
-                               "enum": ["cobranca", "spam", "marketing", "pessoal",
-                                        "engano", "outro", None]},
-        "nome_cliente": {"type": ["string", "null"]},
-        "telefone_cliente": {"type": ["string", "null"]},
-        "anuncio": {"type": ["string", "null"]},
-        "trecho_evidencia": {"type": ["string", "null"]},
+        "classificacao": {"type": "string", "enum": ["lead", "nao_lead", "duvida"]},
+        "motivo": {"type": "string"},
+        "trecho_evidencia": {"type": "string"},
     },
+    "required": ["classificacao", "motivo", "trecho_evidencia"],
+    "additionalProperties": False,
 }
 
 
-def so_digitos(s):
-    return "".join(c for c in str(s or "") if c.isdigit())
+def montar_usuario(texto: str) -> str:
+    ex = "\n".join(f'  "{t}" -> {json.dumps({"classificacao": c, "motivo": "...", "trecho_evidencia": e}, ensure_ascii=False)}'
+                   for t, c, e in EXEMPLOS)
+    return f"Exemplos:\n{ex}\n\nMensagem:\n{texto[:LIMITE_TEXTO]}"
 
 
-def aplicar_travas(ia, texto, payload_bruto=""):
-    """Prompt e pedido; codigo e garantia.
+def corpo_requisicao(texto: str, modelo: str = MODELO, com_esforco: bool = True) -> dict:
+    corpo = {
+        "model": modelo,
+        "max_tokens": MAX_TOKENS,
+        "response_format": {"type": "json_schema",
+                            "json_schema": {"name": "portaria", "strict": True, "schema": SCHEMA}},
+        "messages": [{"role": "system", "content": SYSTEM_PROMPT},
+                     {"role": "user", "content": montar_usuario(texto)}],
+    }
+    if com_esforco:
+        corpo["reasoning"] = {"effort": ESFORCO}
+    return corpo
 
-    Duas travas, ambas do spec:
-      - telefone so vale se os digitos aparecerem LITERALMENTE no payload
-      - trecho_evidencia que nao seja substring literal do texto forca `incerto`
 
-    Devolve (resultado_ajustado, lista_de_travas_que_dispararam).
+def extrair(resposta: dict):
+    """dict da IA, ou None se a resposta nao serve (vira duvida nas travas)."""
+    try:
+        esc = resposta["choices"][0]
+        if esc.get("finish_reason") not in ("stop", None):
+            return None
+        conteudo = esc["message"]["content"]
+        if isinstance(conteudo, str):
+            conteudo = conteudo.strip()
+            if conteudo.startswith("```"):
+                conteudo = conteudo.strip("`").split("\n", 1)[-1]
+            return json.loads(conteudo)
+        return conteudo
+    except (KeyError, IndexError, TypeError, ValueError, AttributeError):
+        return None
+
+
+def aplicar_travas(ia, texto: str) -> dict:
+    """Garantias em codigo. Qualquer coisa fora do esperado vira `duvida`.
+
+    - classificacao fora de {lead, nao_lead, duvida} -> duvida
+    - nao_lead sem trecho literal da mensagem -> duvida
     """
-    out = dict(ia)
-    disparos = []
-
-    tel = so_digitos(ia.get("telefone_cliente"))
-    bruto = so_digitos(str(payload_bruto) + " " + str(texto))
-    tel_ok = len(tel) >= 10 and tel in bruto
-    out["telefone_verificado"] = tel_ok
-    if ia.get("telefone_cliente") and not tel_ok:
-        disparos.append("telefone inventado — descartado")
-        out["telefone_cliente"] = None
-
-    trecho = ia.get("trecho_evidencia")
-    citou = bool(trecho) and trecho in (texto or "")
-    if not citou:
-        if out.get("classificacao") != "incerto":
-            disparos.append("evidencia nao literal — forcado a incerto")
-        out["classificacao"] = "incerto"
-
-    return out, disparos
+    if not isinstance(ia, dict) or ia.get("classificacao") not in ("lead", "nao_lead", "duvida"):
+        return {"classificacao": "duvida", "motivo": "resposta da IA invalida ou ausente", "trecho_evidencia": "",
+                "trava": "resposta_invalida"}
+    r = {"classificacao": ia["classificacao"], "motivo": str(ia.get("motivo") or "")[:200],
+         "trecho_evidencia": str(ia.get("trecho_evidencia") or ""), "trava": None}
+    if r["classificacao"] == "nao_lead":
+        trecho = r["trecho_evidencia"].strip()
+        if len(trecho) < 6 or trecho not in (texto or ""):
+            r["classificacao"] = "duvida"
+            r["trava"] = "evidencia_nao_literal"
+    return r
 
 
-def decidir(resultado):
-    """Traduz a classificacao em acao, conforme a tabela "Decisao final" do spec.
-
-    Fail open por construcao: tudo que nao casa com um caso explicito cai em
-    distribuir com duvida.
-    """
-    c = resultado.get("classificacao")
-    conf = resultado.get("confianca") or 0
-    if c == "lead_novo" and conf >= 0.80:
-        return "distribuir"
-    if c == "pos_venda" and conf >= 0.80:
-        return "distribuir_sem_contar_lead_novo"
-    if c == "nao_lead" and conf >= 0.90:
-        return "arquivar"
-    return "distribuir_com_duvida"
+def decidir(resultado: dict) -> str:
+    """'ignorar' so para nao_lead que passou nas travas; o resto distribui."""
+    return "ignorar" if resultado.get("classificacao") == "nao_lead" else "distribuir"

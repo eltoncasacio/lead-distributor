@@ -1,157 +1,116 @@
-"""Portaria — passo 2: rodar o prompt contra a amostra rotulada e medir.
+#!/usr/bin/env python3
+"""Portaria v3 — avalia o prompt contra a amostra rotulada pelo dono.
 
-Usa HTTP cru de proposito, com o mesmo formato de chamada que o no do n8n vai
-usar — assim o que e medido aqui e o que roda la.
+  python3 portaria/avaliar.py --modelo nvidia/nemotron-3-super-120b-a12b:free     (gratuito, texto MASCARADO)
+  python3 portaria/avaliar.py                                                    (prompt.MODELO, producao)
 
-    source venv/bin/activate
-    python3 portaria/avaliar.py
+Requer OPENROUTER_API_KEY no .env e portaria/amostra_para_rotular.csv com
+ROTULO_HUMANO preenchido (lead / nao_lead / duvida). O CSV tem mensagens
+REAIS de clientes e esta no .gitignore.
 
-Precisa de:
-  - portaria/amostra_para_rotular.csv com a coluna ROTULO_HUMANO preenchida
-  - ANTHROPIC_API_KEY no .env
+Modelo `:free` -> nomes, telefones, e-mails e links sao MASCARADOS antes de
+sair da maquina (provedores gratuitos podem guardar o texto). Modelo pago ->
+texto como em producao.
 
-O PORTAO: zero mensagens rotuladas como cliente (lead_novo ou pos_venda) que o
-modelo tenha classificado como nao_lead. Falso lead_novo e tolerado — ja e o
-comportamento de hoje. Se o portao falhar, NAO SOBE.
+PORTAO (spec 07): zero mensagens rotuladas `lead` ou `duvida` que acabem
+ignoradas (nao_lead depois das travas). E o unico erro caro. O que nao passa
+no portao nao sobe.
 """
-import csv
-import json
-import os
-import sys
-import urllib.error
-import urllib.request
-from collections import Counter
+import csv, json, pathlib, re, sys, time, urllib.error, urllib.request
 
-from dotenv import load_dotenv
+AQUI = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(AQUI.parent))
+from portaria import prompt as P
 
-AQUI = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(AQUI))
-load_dotenv(os.path.join(os.path.dirname(AQUI), ".env"))
-
-from portaria.prompt import (  # noqa: E402
-    FEW_SHOT, MODELO, SCHEMA, SYSTEM_PROMPT, aplicar_travas, decidir,
-)
-
-CLIENTE = {"lead_novo", "pos_venda"}
+RAIZ = AQUI.parent
+ENV = dict(l.split("=", 1) for l in (RAIZ / ".env").read_text().splitlines() if "=" in l and not l.startswith("#"))
+CHAVE = ENV.get("OPENROUTER_API_KEY", "").strip()
+if not CHAVE: sys.exit("OPENROUTER_API_KEY nao esta no .env")
+MODELO = sys.argv[sys.argv.index("--modelo") + 1] if "--modelo" in sys.argv else P.MODELO
+GRATIS = MODELO.endswith(":free")
+LIMITE = int(sys.argv[sys.argv.index("--limite") + 1]) if "--limite" in sys.argv else None
 
 
-def classificar(texto, chave, modelo=MODELO):
-    mensagens = []
-    for exemplo, saida in FEW_SHOT:
-        mensagens.append({"role": "user", "content": exemplo})
-        mensagens.append({"role": "assistant",
-                          "content": json.dumps(saida, ensure_ascii=False)})
-    mensagens.append({"role": "user", "content": texto})
+# Palavras que aparecem no nome do perfil mas nao sao dado pessoal (empresa,
+# plataforma, a propria loja) — mascarar escondia a pista de "fornecedor".
+NAO_E_NOME = {"webmotors", "claro", "renato", "motors", "pesquisa", "olx", "icarros", "napista",
+              "mobiauto", "info", "verifica", "banco", "loja", "time", "suporte", "comercial"}
+GATILHO = r"(?i)(me chamo|meu nome é|meu nome e|aqui é o|aqui é a|aqui e o|aqui e a|prazer,?|cliente:)"
 
-    corpo = {
-        "model": modelo,
-        "max_tokens": 512,
-        "system": SYSTEM_PROMPT,
-        "messages": mensagens,
-        "output_config": {"effort": "low",
-                          "format": {"type": "json_schema", "schema": SCHEMA}},
-    }
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=json.dumps(corpo).encode("utf-8"),
-        headers={"x-api-key": chave, "anthropic-version": "2023-06-01",
-                 "content-type": "application/json"},
-    )
-    with urllib.request.urlopen(req, timeout=60) as r:
-        resp = json.load(r)
-    return json.loads(resp["content"][0]["text"])
+
+def mascarar(texto: str, nome: str) -> str:
+    """Tira dado pessoal antes de mandar para modelo gratuito. Prefere mascarar a mais."""
+    t = re.sub(r"https?://\S+|www\.\S+", "<LINK>", texto)
+    t = re.sub(r"[\w.+-]+@[\w-]+\.[\w.]+", "<EMAIL>", t)
+    t = re.sub(r"\d[\d\s().-]{6,}\d", "<NUMERO>", t)
+    # aviso de portal: "Cliente: Fulano de Tal Mensagem: ..."
+    t = re.sub(r"(?i)(cliente:)\s*.*?\s+(mensagem:)", r"\1 <NOME> \2", t)
+    # nome depois de gatilho, ate pontuacao ou palavra de ligacao (ate 6 palavras, qualquer caixa)
+    t = re.sub(GATILHO + r"\s+((?:(?!estava\b|e\b|eu\b|da\b|do\b|que\b)[\wÀ-ú]+\s*){1,6}?)(?=[,.!?]|\s+(?:estava|e|eu|da|do|que|mensagem:)\b|$)",
+               lambda m: m.group(1) + " <NOME>", t)
+    # "Fulano De Tal, seu contrato..." (nome no comeco seguido de virgula)
+    t = re.sub(r"^((?:[A-ZÀ-Ú][\wÀ-ú]+\s+){1,5}[A-ZÀ-Ú]?[\wÀ-ú]+),", "<NOME>,", t)
+    for parte in sorted({p for p in re.split(r"\s+", nome or "") if len(p) >= 3 and p.lower() not in NAO_E_NOME},
+                        key=len, reverse=True):
+        t = re.sub(r"\b" + re.escape(parte) + r"\b", "<NOME>", t, flags=re.I)
+    return t
+
+
+def chamar(texto):
+    corpo = P.corpo_requisicao(texto, MODELO, com_esforco=not GRATIS)
+    for tentativa in range(6):
+        req = urllib.request.Request(P.URL, data=json.dumps(corpo).encode(),
+                                     headers={"content-type": "application/json", "authorization": f"Bearer {CHAVE}",
+                                              "x-title": "lead-distributor portaria (avaliacao)"})
+        t0 = time.time()
+        try:
+            with urllib.request.urlopen(req, timeout=90) as r: return json.loads(r.read()), time.time() - t0
+        except urllib.error.HTTPError as e:
+            corpo_erro = e.read().decode()[:400]
+            if e.code == 429:
+                time.sleep(15 * (tentativa + 1)); continue
+            if e.code == 404 and "data policy" in corpo_erro.lower():
+                sys.exit("O OpenRouter bloqueou o modelo gratuito pela politica de dados da conta.\n"
+                         "Em openrouter.ai/settings/privacy, permitir endpoints gratuitos que podem registrar prompts\n"
+                         "(o texto vai mascarado). Detalhe: " + corpo_erro)
+            return {"erro": f"HTTP {e.code}: {corpo_erro}"}, time.time() - t0
+        except Exception as e:
+            return {"erro": str(e)}, time.time() - t0
+    return {"erro": "429 persistente"}, 0
 
 
 def main():
-    chave = os.environ.get("ANTHROPIC_API_KEY")
-    if not chave:
-        raise SystemExit(
-            "ANTHROPIC_API_KEY nao esta no .env.\n"
-            "Acrescente:  echo 'ANTHROPIC_API_KEY=sk-ant-...' >> .env")
-
-    caminho = os.path.join(AQUI, "amostra_para_rotular.csv")
-    if not os.path.exists(caminho):
-        raise SystemExit("rode antes: python3 portaria/amostrar.py")
-
-    with open(caminho, encoding="utf-8") as f:
-        linhas = [l for l in csv.DictReader(f)
-                  if (l.get("ROTULO_HUMANO") or "").strip()]
-    if not linhas:
-        raise SystemExit(
-            "nenhuma linha rotulada em %s.\n"
-            "Preencha a coluna ROTULO_HUMANO com lead_novo / pos_venda / "
-            "nao_lead / incerto." % caminho)
-
-    print("avaliando %d mensagens rotuladas com %s...\n" % (len(linhas), MODELO))
-
-    matriz, violacoes, travas, erros, saidas = Counter(), [], Counter(), 0, []
+    linhas = list(csv.DictReader(open(AQUI / "amostra_para_rotular.csv", encoding="utf-8")))
+    linhas = [l for l in linhas if l.get("ROTULO_HUMANO") in ("lead", "nao_lead", "duvida")]
+    if LIMITE: linhas = linhas[:LIMITE]
+    print(f"modelo: {MODELO} ({'GRATUITO, texto mascarado' if GRATIS else 'pago, texto real'}) | {len(linhas)} mensagens\n")
+    perigoso, filtrou, deixou_passar, erros, custo, lat = [], 0, [], 0, 0.0, []
+    total_nao = sum(1 for l in linhas if l["ROTULO_HUMANO"] == "nao_lead")
     for i, l in enumerate(linhas, 1):
-        texto, humano = l["mensagem"], l["ROTULO_HUMANO"].strip()
-        try:
-            bruto = classificar(texto, chave)
-        except (urllib.error.URLError, KeyError, ValueError) as e:
-            erros += 1
-            print("  [%3d/%d] ERRO: %s" % (i, len(linhas), str(e)[:70]))
-            continue
-
-        final, disparos = aplicar_travas(bruto, texto, payload_bruto=texto)
-        for d in disparos:
-            travas[d] += 1
-        maquina = final["classificacao"]
-        matriz[(humano, maquina)] += 1
-        saidas.append({"id": l["id"], "humano": humano, "maquina": maquina,
-                       "confianca": final.get("confianca"),
-                       "acao": decidir(final), "mensagem": texto[:90]})
-
-        if humano in CLIENTE and maquina == "nao_lead":
-            violacoes.append((texto, humano, final))
-        print("  [%3d/%d] humano=%-10s modelo=%-10s %s"
-              % (i, len(linhas), humano, maquina,
-                 "<<< VIOLACAO" if (humano in CLIENTE and maquina == "nao_lead") else ""))
-
-    print("\n" + "=" * 68)
-    print("MATRIZ  (linha = rotulo humano, coluna = modelo)")
-    print("=" * 68)
-    cats = ["lead_novo", "pos_venda", "nao_lead", "incerto"]
-    print("%-12s" % "" + "".join("%11s" % c for c in cats))
-    for h in cats:
-        if not any(matriz[(h, m)] for m in cats):
-            continue
-        print("%-12s" % h + "".join("%11d" % matriz[(h, m)] for m in cats))
-
-    acertos = sum(matriz[(c, c)] for c in cats)
-    total = sum(matriz.values())
-    if total:
-        print("\nconcordancia exata: %d/%d (%.1f%%)" % (acertos, total, 100 * acertos / total))
-    if erros:
-        print("chamadas com erro: %d" % erros)
-    if travas:
-        print("\ntravas que dispararam:")
-        for t, n in travas.most_common():
-            print("  %-45s %d" % (t, n))
-
-    with open(os.path.join(AQUI, "resultado_avaliacao.csv"), "w",
-              newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(saidas[0].keys()) if saidas else ["id"])
-        w.writeheader()
-        w.writerows(saidas)
-
-    print("\n" + "=" * 68)
-    if violacoes:
-        print("PORTAO: REPROVADO — %d cliente(s) classificado(s) como nao_lead" % len(violacoes))
-        print("=" * 68)
-        for texto, humano, r in violacoes:
-            print("\n  rotulo humano: %s" % humano)
-            print("  mensagem.....: %s" % texto[:150])
-            print("  motivo do modelo: %s" % r.get("motivo"))
-            print("  confianca....: %s" % r.get("confianca"))
-        print("\nNAO SUBIR. Ajuste o prompt e rode de novo.")
-        sys.exit(1)
-
-    print("PORTAO: PASSOU — nenhum cliente foi classificado como nao_lead")
-    print("=" * 68)
-    print("Proximo passo: ramo sombra no n8n (Fase 6), >=2 semanas e >=200")
-    print("mensagens antes de qualquer corte.")
+        texto = l["mensagem"]
+        if GRATIS: texto = mascarar(texto, l.get("nome_no_lead", ""))
+        resp, dt = chamar(texto); lat.append(dt)
+        if "erro" in resp: erros += 1
+        u = resp.get("usage") or {}
+        if u.get("cost") is not None: custo += float(u["cost"])
+        r = P.aplicar_travas(P.extrair(resp), texto)
+        acao = P.decidir(r); rot = l["ROTULO_HUMANO"]
+        if rot in ("lead", "duvida") and acao == "ignorar":
+            perigoso.append((i, texto[:90], r["motivo"][:80]))
+        if rot == "nao_lead":
+            if acao == "ignorar": filtrou += 1
+            else: deixou_passar.append((i, texto[:70], r["classificacao"], r.get("trava")))
+        if "--verboso" in sys.argv or (rot == "nao_lead") or acao == "ignorar":
+            print(f"{i:3} rotulo={rot:8} ia={r['classificacao']:8} acao={acao:10} {dt:4.1f}s | {texto[:70]!r}"
+                  + (f"  [trava: {r['trava']}]" if r.get("trava") else ""))
+        if GRATIS: time.sleep(3)   # limite de requisicoes dos modelos gratuitos
+    print(f"\nERRO PERIGOSO (cliente ignorado): {len(perigoso)}  <- portao: tem de ser 0")
+    for p in perigoso: print(f"   #{p[0]} {p[1]!r}\n      motivo da IA: {p[2]}")
+    print(f"nao-lead filtrados: {filtrou}/{total_nao} (os que passaram so vao para o vendedor, como hoje)")
+    for d in deixou_passar: print(f"   passou #{d[0]} {d[1]!r} -> {d[2]} {('[trava: ' + d[3] + ']') if d[3] else ''}")
+    print(f"respostas com erro da API: {erros} (contam como duvida = distribui)")
+    print(f"custo: US$ {custo:.4f} | latencia media {sum(lat)/max(len(lat),1):.1f}s, pior {max(lat or [0]):.1f}s")
+    print("\nPORTAO:", "PASSOU" if not perigoso else "NAO PASSOU")
 
 
 if __name__ == "__main__":

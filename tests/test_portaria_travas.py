@@ -1,144 +1,79 @@
-"""Travas da Portaria — os criterios de bloqueio do ACEITE, como teste.
+"""Travas da Portaria v3 — o que roda DEPOIS do modelo, como teste.
 
-O ACEITE da Fase 4 lista tres criterios de bloqueio em texto. Aqui eles viram
-codigo que roda:
+Desenho v3 (spec 07, topo): numero novo -> IA diz lead / nao_lead / duvida.
+So `nao_lead` e ignorado; todo o resto distribui. O unico erro caro e ignorar
+um cliente, entao as travas existem para que `nao_lead` so passe com evidencia
+literal, e para que qualquer resposta estranha vire `duvida` (= distribui).
 
-  - "Telefone so aceito se os digitos aparecerem literalmente no payload bruto.
-     Teste: forcar o modelo a devolver um numero inventado e confirmar que e
-     descartado"
-  - "trecho_evidencia que nao for substring literal do texto forca `incerto`"
-  - "Fail open: confirmar que a mensagem e distribuida assim mesmo, marcada
-     distribuido_com_duvida"
-
-Nao chamam a API. Testam o codigo que roda DEPOIS do modelo — que e onde mora
-a garantia. Prompt e pedido; codigo e garantia.
+Nao chamam a API. Prompt e pedido; codigo e garantia.
+(Os testes da v2 — telefone inventado, 4 categorias — sairam junto com a v2.)
 """
-from portaria.prompt import aplicar_travas, decidir
+from portaria.prompt import aplicar_travas, decidir, extrair
+
+TEXTO_BOLETO = "Informamos que o seu boleto encontra-se em aberto. Evite juros."
 
 
-def _ia(**kw):
-    base = {
-        "classificacao": "lead_novo", "intencao": "comprar", "confianca": 0.95,
-        "motivo": "x", "categoria_nao_lead": None, "nome_cliente": None,
-        "telefone_cliente": None, "anuncio": None, "trecho_evidencia": None,
-    }
-    base.update(kw)
-    return base
+# ------------------------------------------------ nao_lead exige evidencia literal
+
+def test_nao_lead_com_trecho_literal_e_ignorado():
+    r = aplicar_travas({"classificacao": "nao_lead", "motivo": "cobranca",
+                        "trecho_evidencia": "seu boleto encontra-se em aberto"}, TEXTO_BOLETO)
+    assert r["classificacao"] == "nao_lead"
+    assert decidir(r) == "ignorar"
 
 
-# ------------------------------------------------ trava 1: telefone inventado
-
-def test_telefone_inventado_e_descartado():
-    texto = "Tenho interesse no Onix, pode me passar mais informações?"
-    saida, disparos = aplicar_travas(
-        _ia(telefone_cliente="11987654321", trecho_evidencia="Tenho interesse no Onix"),
-        texto, payload_bruto=texto)
-
-    assert saida["telefone_cliente"] is None, "numero inventado passou"
-    assert saida["telefone_verificado"] is False
-    assert any("inventado" in d for d in disparos)
+def test_nao_lead_com_trecho_parafraseado_vira_duvida_e_distribui():
+    r = aplicar_travas({"classificacao": "nao_lead", "motivo": "cobranca",
+                        "trecho_evidencia": "boleto em aberto"}, TEXTO_BOLETO)
+    assert r["classificacao"] == "duvida" and r["trava"] == "evidencia_nao_literal"
+    assert decidir(r) == "distribuir"
 
 
-def test_telefone_que_esta_na_mensagem_e_aceito():
-    texto = "Oi, me liga no (19) 99123-4567 que eu quero ver o Onix"
-    saida, _ = aplicar_travas(
-        _ia(telefone_cliente="19991234567",
-            trecho_evidencia="quero ver o Onix"), texto, payload_bruto=texto)
-
-    assert saida["telefone_verificado"] is True
-    assert saida["telefone_cliente"] == "19991234567"
+def test_nao_lead_sem_trecho_vira_duvida():
+    r = aplicar_travas({"classificacao": "nao_lead", "motivo": "x", "trecho_evidencia": ""}, TEXTO_BOLETO)
+    assert decidir(r) == "distribuir"
 
 
-def test_telefone_aceito_mesmo_com_formatacao_diferente():
-    """O cliente escreve com pontuacao; o modelo devolve so digitos."""
-    texto = "meu whats e 19 9 9123-4567"
-    saida, _ = aplicar_travas(
-        _ia(telefone_cliente="(19) 99123-4567", trecho_evidencia="meu whats e"),
-        texto, payload_bruto=texto)
-
-    assert saida["telefone_verificado"] is True
+def test_nao_lead_com_trecho_curto_demais_vira_duvida():
+    # "em" esta no texto, mas nao prova nada
+    r = aplicar_travas({"classificacao": "nao_lead", "motivo": "x", "trecho_evidencia": "em"}, TEXTO_BOLETO)
+    assert decidir(r) == "distribuir"
 
 
-def test_telefone_curto_demais_nao_vale():
-    texto = "quero o carro por 1234"
-    saida, _ = aplicar_travas(
-        _ia(telefone_cliente="1234", trecho_evidencia="quero o carro"),
-        texto, payload_bruto=texto)
+# ------------------------------------------------ lead e duvida distribuem, com ou sem evidencia
 
-    assert saida["telefone_verificado"] is False
-    assert saida["telefone_cliente"] is None
+def test_lead_distribui_mesmo_sem_evidencia():
+    r = aplicar_travas({"classificacao": "lead", "motivo": "x", "trecho_evidencia": ""}, "oi")
+    assert decidir(r) == "distribuir"
 
 
-# --------------------------------------------- trava 2: evidencia nao literal
-
-def test_evidencia_parafraseada_forca_incerto():
-    texto = "Bom dia, gostaria de saber o valor do Corolla 2018"
-    saida, disparos = aplicar_travas(
-        _ia(classificacao="nao_lead", confianca=0.99,
-            trecho_evidencia="o cliente perguntou sobre o preco"),  # parafrase
-        texto, payload_bruto=texto)
-
-    assert saida["classificacao"] == "incerto"
-    assert any("evidencia" in d for d in disparos)
+def test_duvida_distribui():
+    r = aplicar_travas({"classificacao": "duvida", "motivo": "x", "trecho_evidencia": "x"}, "x")
+    assert decidir(r) == "distribuir"
 
 
-def test_evidencia_ausente_forca_incerto():
-    texto = "Tenho interesse"
-    saida, _ = aplicar_travas(
-        _ia(classificacao="nao_lead", confianca=0.99, trecho_evidencia=None),
-        texto, payload_bruto=texto)
+# ------------------------------------------------ fail open: qualquer coisa estranha distribui
 
-    assert saida["classificacao"] == "incerto"
+def test_resposta_ausente_distribui():
+    assert decidir(aplicar_travas(None, "qualquer")) == "distribuir"
 
 
-def test_evidencia_literal_preserva_a_classificacao():
-    texto = "Olá! Informamos que sua fatura já está disponível"
-    saida, disparos = aplicar_travas(
-        _ia(classificacao="nao_lead", categoria_nao_lead="cobranca", confianca=0.97,
-            trecho_evidencia="sua fatura já está disponível"),
-        texto, payload_bruto=texto)
-
-    assert saida["classificacao"] == "nao_lead"
-    assert disparos == []
+def test_classificacao_desconhecida_distribui():
+    assert decidir(aplicar_travas({"classificacao": "spam", "trecho_evidencia": "qualquer"}, "qualquer")) == "distribuir"
 
 
-def test_trava_de_evidencia_nao_deixa_arquivar_por_engano():
-    """A trava existe para proteger o cliente: sem citacao literal, nao arquiva."""
-    texto = "quero comprar um carro"
-    saida, _ = aplicar_travas(
-        _ia(classificacao="nao_lead", confianca=0.99, trecho_evidencia="spam"),
-        texto, payload_bruto=texto)
-
-    assert decidir(saida) != "arquivar"
+def test_formato_v2_antigo_distribui():
+    # se o n8n ainda tiver o prompt v2 e devolver "lead_novo"/"incerto", nada e ignorado
+    assert decidir(aplicar_travas({"classificacao": "incerto"}, "x")) == "distribuir"
 
 
-# ------------------------------------------------- trava 3: custo assimetrico
-
-def test_fail_open_quando_incerto():
-    assert decidir(_ia(classificacao="incerto", confianca=0.2)) == "distribuir_com_duvida"
-
-
-def test_fail_open_quando_confianca_baixa():
-    assert decidir(_ia(classificacao="lead_novo", confianca=0.5)) == "distribuir_com_duvida"
+def test_extrair_resposta_cortada_ou_recusa_e_none():
+    assert extrair({"choices": [{"finish_reason": "length", "message": {"content": "{\"classif"}}]}) is None
+    assert extrair({"choices": [{"finish_reason": "stop", "message": {"content": "nao e json"}}]}) is None
+    assert extrair({}) is None
 
 
-def test_nao_lead_com_confianca_media_nao_arquiva():
-    """O corte de nao_lead e 0.90, mais alto que o de lead_novo de proposito."""
-    assert decidir(_ia(classificacao="nao_lead", confianca=0.85)) == "distribuir_com_duvida"
-    assert decidir(_ia(classificacao="nao_lead", confianca=0.95)) == "arquivar"
-
-
-def test_lead_novo_confiante_distribui():
-    assert decidir(_ia(classificacao="lead_novo", confianca=0.93)) == "distribuir"
-
-
-def test_pos_venda_distribui_mas_nao_conta_como_lead_novo():
-    assert decidir(_ia(classificacao="pos_venda", confianca=0.96)) \
-        == "distribuir_sem_contar_lead_novo"
-
-
-def test_resposta_vazia_ou_quebrada_nao_arquiva():
-    """API fora, timeout, JSON torto: o caminho tem que cair em distribuir."""
-    for lixo in ({}, {"classificacao": None}, {"classificacao": "coisa_nova"},
-                 {"classificacao": "nao_lead"}):  # sem confianca
-        assert decidir(lixo) == "distribuir_com_duvida"
+def test_extrair_json_valido_e_dentro_de_bloco_de_codigo():
+    j = '{"classificacao": "lead", "motivo": "x", "trecho_evidencia": "oi"}'
+    assert extrair({"choices": [{"finish_reason": "stop", "message": {"content": j}}]})["classificacao"] == "lead"
+    assert extrair({"choices": [{"finish_reason": "stop", "message": {"content": "```json\n" + j + "\n```"}}]})["classificacao"] == "lead"
