@@ -267,6 +267,8 @@ Script: [`docs/dev/fase-a/aplicar_comandos_n8n.py`](../../../dev/fase-a/aplicar_
 
 **Reverter:** cada script tem `--reverter` (snapshot em `.n8n_backups/`). Reverter o limite volta para `968c9767`; reverter a IA volta para `7bffe0f1`.
 
+**Só ativo fala com o sistema (regra do dono, 10/10 noite).** Vendedor pausado/removido e gerente desativado não recebem resposta nem gastam IA (`executar_comando` e `reservar_ia`). No n8n, `Tem Resposta?` entre `Comando Legado?` (não) e `Enviar Resposta Comando` impede mensagem vazia — `27980f06` → `f45f0f4f`, script `docs/dev/fase-a/aplicar_silencio_n8n.py`. Aplicado nessa ordem (n8n antes do banco) para nunca haver janela de mensagem vazia. `identificar_remetente` **não** mudou: vendedor pausado continua indo para o caminho de comando (e sendo ignorado), em vez de virar lead. Conferido em produção: 4 gerentes e 3 vendedores ativos respondem; Felipe e Silas (removidos) ignorados; André (gerente + vendedor pausado) responde como gerente.
+
 ## Arquivos
 
 - `FIX_mensagens_recebidas.sql` / `ROLLBACK_mensagens_recebidas.sql` — Fase 3. **Não aplicados**: DDL não passa pela PostgREST, tem de ser rodado no SQL Editor do Supabase. Não tocam `leads` nem `distribuir_lead`.
