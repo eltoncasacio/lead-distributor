@@ -301,6 +301,14 @@ Script: [`docs/dev/fase-a/aplicar_alerta_email_n8n.py`](../../../dev/fase-a/apli
 
 **Achado no teste — fotos viravam menus:** o gerente Renato mandou um álbum de 27 fotos e recebeu 27 menus (`9190`–`9216`); mensagem sem texto era tratada como `menu`. Corrigido no SQL: sem texto, silêncio (só no caminho de comandos; cliente não passa por ele).
 
+## Mensagem padrão do sistema (2026-10-10, noite)
+
+Achado ao montar o onboarding da segunda loja: loja **sem** linha em `mensagens_prontas` fazia `Buscar Mensagens Prontas` voltar vazio e o n8n **parava antes de `Encaminhar ao Vendedor`** — lead criado e distribuído, vendedor nunca avisado, sem erro. A Renato Motors não sofria (tem mensagens cadastradas). Pedido do dono: "era para ter mensagem padrão".
+
+`2931765f` → `03b218b7`, script `docs/dev/fase-a/aplicar_mensagem_padrao_n8n.py`: `Buscar Mensagens Prontas` com `alwaysOutputData`; `Montar Notificação` ignora item vazio e, sem mensagem cadastrada, usa a padrão do sistema ("…consultor de vendas da {loja_nome}…"); placeholder novo `{loja_nome}`.
+
+**Verificado antes de aplicar:** o código antigo e o novo rodados localmente (Node) com as mensagens reais da Renato Motors produzem aviso **idêntico** (vendedor com e sem mensagem própria); para loja sem mensagem, o antigo quebra e o novo gera o link com o nome da loja. **Não verificado em produção ainda:** o primeiro lead real depois da mudança — conferir que chegou ao vendedor (`auditoria_producao.py` + execução no n8n).
+
 ## Arquivos
 
 - `FIX_mensagens_recebidas.sql` / `ROLLBACK_mensagens_recebidas.sql` — Fase 3. **Não aplicados**: DDL não passa pela PostgREST, tem de ser rodado no SQL Editor do Supabase. Não tocam `leads` nem `distribuir_lead`.

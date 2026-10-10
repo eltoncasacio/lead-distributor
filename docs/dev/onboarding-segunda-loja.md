@@ -18,9 +18,9 @@
 | **Um celular de "vendedor"** | receber o lead | um número que você controle e que **não** seja o da loja fake |
 | **Um celular de "cliente"** | mandar a mensagem de teste | qualquer número que não esteja cadastrado na loja fake |
 
-## Passo 0 — proteção no n8n (Claude faz, uma vez só)
+## Passo 0 — mensagem padrão do sistema ✅ feito em 2026-10-10
 
-Hoje, **loja sem mensagem pronta cadastrada não avisa o vendedor**: `Buscar Mensagens Prontas` volta vazio e o n8n para antes de `Encaminhar ao Vendedor` — o lead é criado e distribuído, mas ninguém fica sabendo (falha silenciosa, o mesmo padrão do incidente NaPista). Correção: a busca passa a entregar item vazio (`alwaysOutputData`) e `Montar Notificação` ignora mensagem sem texto. Sem mensagem pronta, o vendedor recebe o lead **sem** os links "Iniciar conversa".
+Loja sem mensagem pronta cadastrada parava o fluxo antes de avisar o vendedor (lead criado e distribuído em silêncio). Corrigido no n8n (`2931765f` → `03b218b7`): sem mensagem cadastrada, o aviso ao vendedor usa a **mensagem padrão do sistema** — "Olá, meu nome é {vendedor} e sou consultor de vendas da {nome da loja}…". Nada a fazer por loja.
 
 ## Passo 1 — criar a instância na Evolution (dono, com a chave global)
 
@@ -47,7 +47,7 @@ A URL termina em `renato-motors` **de propósito**: é só o nome do caminho no 
 
 ## Passo 3 — cadastrar a loja no banco (Claude faz, com o ok do dono)
 
-Antes de conectar o número, para a primeira mensagem já achar a loja. Três inserções:
+Antes de conectar o número, para a primeira mensagem já achar a loja. Duas inserções obrigatórias e uma opcional:
 
 ```sql
 -- loja
@@ -59,14 +59,14 @@ RETURNING id;
 INSERT INTO gerentes (loja_id, nome, numero_whatsapp, ativo)
 VALUES ('<id>', 'Elton', '5519996977453', true);
 
--- mensagem pronta padrão, com o nome DESTA loja (a da Renato Motors diz "Renato Motors")
+-- OPCIONAL: mensagem pronta própria da loja. Sem ela vale a padrão do sistema (Passo 0).
 INSERT INTO mensagens_prontas (loja_id, vendedor_id, titulo, texto, ordem, ativo)
 VALUES ('<id>', NULL, 'Mensagem Padrão',
         'Olá, meu nome é {vendedor_nome} e sou consultor de vendas da Loja Teste, tudo bem? Vi seu interesse em {anuncio}.',
         1, true);
 ```
 
-Regras do banco que valem aqui: loja ativa precisa de `instancia_evolution`; a instância não pode repetir; telefone de vendedor/gerente é único **dentro da loja** (pode repetir entre lojas). Placeholders da mensagem pronta: `{nome_cliente}`, `{vendedor_nome}`, `{anuncio}`, `{origem}`.
+Regras do banco que valem aqui: loja ativa precisa de `instancia_evolution`; a instância não pode repetir; telefone de vendedor/gerente é único **dentro da loja** (pode repetir entre lojas). Placeholders da mensagem pronta: `{nome_cliente}`, `{vendedor_nome}`, `{anuncio}`, `{origem}` e, desde 10/10, `{loja_nome}`.
 
 ## Passo 4 — conectar o número da loja (dono, no celular da loja)
 
@@ -92,7 +92,7 @@ Isso já prova o caminho de comandos na loja nova. Com IA também funciona: "cad
 Do celular do "cliente", para o número da loja fake: `Olá, tenho interesse no carro`.
 
 **Esperado:**
-- o celular do vendedor recebe **"🚗 Novo Lead — WhatsApp Direto"**, com o telefone do cliente e o link "Mensagem Padrão" (com o nome da Loja Teste);
+- o celular do vendedor recebe **"🚗 Novo Lead — WhatsApp Direto"**, com o telefone do cliente e o link "Mensagem Padrão" (com o nome da loja fake — a cadastrada no Passo 3 ou a padrão do sistema);
 - a Renato Motors **não** recebe nada e a fila dela não anda (`python3 auditoria_producao.py`);
 - o vendedor manda `meus leads` para o número da loja fake e vê esse lead.
 
