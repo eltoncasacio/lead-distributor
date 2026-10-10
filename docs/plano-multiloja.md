@@ -245,6 +245,20 @@ Operação de 2026-10-08/09 (fora de código): vendedor Felipe removido da fila 
 2. Corrigir o vazamento do vendedor (`comando_leads`/`comando_status` sem escopo por remetente) e construir os comandos por WhatsApp, em branch própria — ver [spec 08](specs/tecnica/08-comandos-whatsapp.md).
 3. Fase A, agora incluindo a chave fixa (achado 2); Fase B antes de qualquer segunda loja.
 
+## Decisões e estado de 2026-10-10
+
+- **Streamlit fora do plano.** Decisão do dono: não será mais usado e talvez seja excluído. Não investir nele (nem na Fase D como "migrar o Streamlit"). O canal de gestão da loja passa a ser o **WhatsApp**; um painel web, se voltar, nasce depois e consome as mesmas funções do banco.
+- **Fase A1 feita:** a chave `service_role` saiu do workflow n8n para uma credencial (ver RUNBOOK). **Falta rotacionar a chave** — agora só exige trocar a credencial no n8n.
+- **Alerta "Lead NaPista sem telefone" desligado** por decisão do dono; a mensagem segue para a Triagem.
+- **Histórico git limpo** de UUID da loja, chave da Evolution e dados pessoais antes do primeiro push. Repositório no GitHub **ainda público** (conta dona é outra; o dono decidiu deixar assim por ora).
+
+- **Foco definido pelo dono (2026-10-10): só o core — multi-loja, comandos por WhatsApp e distribuição.** KPIs por vendedor ficam fora: não há como saber se o lead foi vendido e os vendedores não vão registrar.
+- **Cliente que escreve de novo vira lead novo (~9% dos leads): decidido não mexer** (dono, 2026-10-10). Medição e causa em [05-deduplicacao](specs/regras-de-negocio/05-deduplicacao.md).
+
+**Achado que muda os KPIs por vendedor:** todos os 447 leads desde julho estão com `status_lead = negociando` e nenhum foi atualizado depois de distribuído. **Conversão e funil não têm dado** — ninguém marca venda. Dá para medir hoje: leads recebidos por vendedor, por período e por origem, e tempo desde o último lead. Tempo de resposta também não é registrado. Conversão só passa a existir se o vendedor puder marcar o status — candidato natural a comando de WhatsApp.
+
+**Achado para "quem fez o quê":** `atividades` não tem coluna de autor nem de vendedor (só `tipo` e `descricao`). Registrar autor de comando exige coluna nova.
+
 ## O passo que não é código
 
 **Conseguir a segunda loja.** Uma loja real, pagando ou em teste. Sem ela, cadastro, planos e isolamento são construídos no escuro, adivinhando o que o cliente precisa.

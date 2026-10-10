@@ -23,6 +23,27 @@ Se o cliente já tem qualquer lead anterior (para qualquer anúncio) atribuído 
 
 `duplicado = true` sozinho **não** significa silêncio automático. O workflow n8n só descarta a mensagem (não notifica o vendedor de novo) quando `duplicado = true` **e** o remetente é um número oficial de plataforma conhecida (iCarros ou NaPista, por regex de número fixo — ver [tecnica/03](../tecnica/03-workflow-n8n.md)). Um cliente que manda a mesma pergunta duas vezes por WhatsApp direto (`duplicado = true` mas remetente não é plataforma) **é encaminhado normalmente** de novo ao vendedor. Isso nunca esteve claro nos documentos antigos.
 
+## Medido em 2026-10-10: cliente que escreve de novo vira lead novo
+
+Queixa do dono: o cliente manda mensagem, é encaminhado ao vendedor, escreve de novo no número da loja e **conta como lead novo**. Confirmado no código e nos dados.
+
+**Causa:** o Passo 2 (amarração) **cria uma linha nova em `leads`** com o mesmo vendedor e devolve `duplicado = false` — para o n8n é um lead novo, e o vendedor recebe de novo como "novo lead". O Passo 1 só segura se o `anuncio` for **idêntico**, e não é no caso mais comum: a primeira mensagem vem com o texto do OLX (`anuncio` preenchido) e a segunda, segundos depois, cai como `WhatsApp Direto` com `anuncio` vazio.
+
+**Volume (histórico completo, 1.299 leads, sem contar números de plataforma):** 119 leads repetidos do mesmo cliente (~9%).
+
+| Intervalo entre os dois | mesmo vendedor | outro vendedor |
+|---|---|---|
+| < 10 min | 80 | 16 |
+| 10 min – 24 h | 8 | 0 |
+| 1 – 7 dias | 6 | 0 |
+| 7 – 30 dias | 3 | 2 |
+| 30 – 90 dias | 0 | 3 |
+| > 90 dias | 1 | 0 |
+
+Os 16 casos "outro vendedor em menos de 10 min" são provavelmente anteriores ao lock de 31/08 ([ADR 0002](../../adr/0002-lock-advisory-race-condition.md)) — **não verificado**. Os de 7+ dias com outro vendedor batem com vendedor que saiu (amarração só vale com vendedor `ativo`).
+
+**Decisão do dono (2026-10-10): não corrigir — fica como está.** Registrado para não ser reaberto nem "corrigido" por conta própria; a medição acima fica como referência se o assunto voltar.
+
 ## Casos extremos conhecidos (herdados do documento antigo, ainda não resolvidos)
 
 - Cliente troca de número de telefone → tratado como cliente novo (chave é o número). Merge manual pelo Dashboard é ideia de roadmap, não implementada.

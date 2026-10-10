@@ -332,6 +332,16 @@ BEGIN
       RETURN public._cmd_resp(v_papel, 'erro', 'Esse telefone (' || public.formatar_telefone(v_tel) || ') já está cadastrado para *' || v_outro || '*.');
     END IF;
 
+    -- Em producao, uk_vendedores_loja_whatsapp (loja_id, numero_whatsapp) vale
+    -- tambem para removidos: o numero de quem saiu continua ocupado. Avisar
+    -- aqui, antes do eco, em vez de falhar so na confirmacao.
+    SELECT nome INTO v_outro FROM public.vendedores
+     WHERE loja_id = p_loja_id AND status = 'removido' AND public.chave_telefone(numero_whatsapp) = public.chave_telefone(v_tel) LIMIT 1;
+    IF v_outro IS NOT NULL THEN
+      RETURN public._cmd_resp(v_papel, 'erro', 'Esse telefone (' || public.formatar_telefone(v_tel) || ') é de *' || v_outro
+        || E'*, que foi removido.\nPara trazê-lo de volta: *reativar ' || v_outro || '*');
+    END IF;
+
     IF NOT v_confirma THEN
       RETURN public._cmd_resp(v_papel, 'eco',
         'Entendi: inserir o vendedor *' || v_nome || '* com o WhatsApp ' || public.formatar_telefone(v_tel)

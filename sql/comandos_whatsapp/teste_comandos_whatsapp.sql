@@ -1,5 +1,5 @@
 -- Testes de FIX_comandos_whatsapp.sql. Rodar em Postgres descartavel, depois
--- de teste_schema_minimo.sql e do FIX. Falha com EXCEPTION no primeiro erro.
+-- de teste_schema_producao.sql (schema real, gerado do catalogo) e do FIX. Falha com EXCEPTION no primeiro erro.
 CREATE OR REPLACE FUNCTION pg_temp.ok(c boolean, msg text) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN IF c IS NOT TRUE THEN RAISE EXCEPTION 'FALHOU: %', msg; END IF; END $$;
 
@@ -33,8 +33,8 @@ DO $$ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------- cenario
-INSERT INTO lojas (id, nome) VALUES ('11111111-1111-1111-1111-111111111111', 'Loja A'),
-                                    ('22222222-2222-2222-2222-222222222222', 'Loja B');
+INSERT INTO lojas (id, nome, instancia_evolution) VALUES ('11111111-1111-1111-1111-111111111111', 'Loja A', 'loja-a'),
+                                    ('22222222-2222-2222-2222-222222222222', 'Loja B', 'loja-b');
 INSERT INTO gerentes (loja_id, nome, numero_whatsapp) VALUES
   ('11111111-1111-1111-1111-111111111111', 'Gerente A', '5519900000001'),
   ('22222222-2222-2222-2222-222222222222', 'Gerente B', '5519900000002');
@@ -45,9 +45,9 @@ INSERT INTO vendedores (id, loja_id, nome, numero_whatsapp, status, ordem_fila) 
   ('a0000000-0000-0000-0000-000000000004','11111111-1111-1111-1111-111111111111','André', '5519911110004','inativo',4),
   ('b0000000-0000-0000-0000-000000000001','22222222-2222-2222-2222-222222222222','Beto',  '5519922220001','ativo',1);
 UPDATE lojas SET proximo_vendedor_id = 'a0000000-0000-0000-0000-000000000001' WHERE id = '11111111-1111-1111-1111-111111111111';
-INSERT INTO leads (loja_id, vendedor_id, nome_cliente, numero_cliente, anuncio, origem) VALUES
-  ('11111111-1111-1111-1111-111111111111','a0000000-0000-0000-0000-000000000001','Cliente Da Giu','5519988880001','Onix','OLX'),
-  ('11111111-1111-1111-1111-111111111111','a0000000-0000-0000-0000-000000000002','Cliente Do Diego','5519988880002','Argo','NaPista');
+INSERT INTO leads (loja_id, vendedor_id, nome_cliente, numero_cliente, anuncio, origem, recebido_em) VALUES
+  ('11111111-1111-1111-1111-111111111111','a0000000-0000-0000-0000-000000000001','Cliente Da Giu','5519988880001','Onix','OLX', now()),
+  ('11111111-1111-1111-1111-111111111111','a0000000-0000-0000-0000-000000000002','Cliente Do Diego','5519988880002','Argo','NaPista', now());
 
 CREATE OR REPLACE FUNCTION pg_temp.cmd(loja text, rem text, txt text) RETURNS json LANGUAGE sql AS
 $$ SELECT executar_comando(loja::uuid, rem, txt) $$;
@@ -59,18 +59,18 @@ $$ SELECT (executar_comando(loja::uuid, rem, txt))->>'acao' $$;
 -- ---------------------------------------------------------------- unicidade no banco
 DO $$ BEGIN
   BEGIN
-    INSERT INTO vendedores (loja_id, nome, numero_whatsapp, ordem_fila)
-    VALUES ('11111111-1111-1111-1111-111111111111', 'GIU ', '5519977770000', 9);
+    INSERT INTO vendedores (loja_id, nome, numero_whatsapp, status, ordem_fila)
+    VALUES ('11111111-1111-1111-1111-111111111111', 'GIU ', '5519977770000', 'ativo', 9);
     RAISE EXCEPTION 'FALHOU: indice deveria barrar GIU duplicado';
   EXCEPTION WHEN unique_violation THEN NULL; END;
   BEGIN
-    INSERT INTO vendedores (loja_id, nome, numero_whatsapp, ordem_fila)
-    VALUES ('11111111-1111-1111-1111-111111111111', 'Outro', '551911110001', 9); -- JID do Giu sem o 9
+    INSERT INTO vendedores (loja_id, nome, numero_whatsapp, status, ordem_fila)
+    VALUES ('11111111-1111-1111-1111-111111111111', 'Outro', '551911110001', 'ativo', 9); -- JID do Giu sem o 9
     RAISE EXCEPTION 'FALHOU: indice deveria barrar telefone duplicado';
   EXCEPTION WHEN unique_violation THEN NULL; END;
   -- mesmo nome em outra loja pode
-  INSERT INTO vendedores (loja_id, nome, numero_whatsapp, ordem_fila)
-  VALUES ('22222222-2222-2222-2222-222222222222', 'Giu', '5519977770009', 9);
+  INSERT INTO vendedores (loja_id, nome, numero_whatsapp, status, ordem_fila)
+  VALUES ('22222222-2222-2222-2222-222222222222', 'Giu', '5519977770009', 'ativo', 9);
   DELETE FROM vendedores WHERE numero_whatsapp = '5519977770009';
 END $$;
 
@@ -186,7 +186,9 @@ BEGIN
   PERFORM pg_temp.eq((SELECT status FROM vendedores WHERE nome='Felipe'), 'ativo', 'Felipe voltou');
   -- reativar removido cujo telefone foi tomado por outro
   UPDATE vendedores SET status='removido' WHERE nome='Giu';
-  UPDATE vendedores SET numero_whatsapp='5519911110001' WHERE nome='André';
+  -- em producao o mesmo texto e barrado por uk_vendedores_loja_whatsapp; o caso
+  -- real e o mesmo numero sem o nono digito (JID antigo)
+  UPDATE vendedores SET numero_whatsapp='551911110001' WHERE nome='André';
   PERFORM pg_temp.ok(pg_temp.resp(A, G, 'reativar Giu') LIKE '%já é de *André*%', 'telefone tomado impede reativar');
 
   -- atividades tipadas
@@ -225,6 +227,20 @@ BEGIN
   SET LOCAL ROLE service_role;
   PERFORM executar_comando('11111111-1111-1111-1111-111111111111', '5519900000001', 'menu');
   RESET ROLE;
+END $$;
+
+-- ---------------------------------------------------------------- telefone de removido
+-- Em producao uk_vendedores_loja_whatsapp vale tambem para removidos. O inserir
+-- tem de avisar ja no eco, e nao falhar so na confirmacao.
+DO $$
+DECLARE A text := '11111111-1111-1111-1111-111111111111'; G text := '5519900000001'; r text;
+BEGIN
+  INSERT INTO vendedores (loja_id, nome, numero_whatsapp, status, ordem_fila)
+  VALUES (A::uuid, 'Silas', '5519911110005', 'removido', 50);
+  r := pg_temp.resp(A, G, 'inserir vendedor Novato 19 91111-0005');
+  PERFORM pg_temp.ok(r LIKE '%Silas%' AND r LIKE '%reativar Silas%', 'telefone de removido avisa no eco: ' || r);
+  PERFORM pg_temp.eq(pg_temp.acao(A, G, 'confirmar inserir vendedor Novato 5519911110005'), 'erro', 'confirmar tambem recusa');
+  PERFORM pg_temp.ok(NOT EXISTS (SELECT 1 FROM vendedores WHERE nome = 'Novato'), 'Novato nao foi inserido');
 END $$;
 
 SELECT 'TODOS OS TESTES PASSARAM' AS resultado;
