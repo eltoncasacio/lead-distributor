@@ -12,15 +12,19 @@ O corpo montado por `corpo_requisicao()` e o mesmo que o no do n8n envia
 """
 import json
 
-# Padrao recomendado pela referencia da API. Trocar para "claude-haiku-5-5"
-# (~40x mais barato) e decisao do dono; rodar avaliar.py com os dois antes.
-MODELO = "claude-opus-5-5"
+# Provedor: "openrouter" (chave OPENROUTER_API_KEY, formato de chat da OpenAI,
+# decisao do dono em 2026-10-10) ou "anthropic" (ANTHROPIC_API_KEY, API direta).
+# O modelo e escolhido pela avaliacao (avaliar.py) — decisao do dono.
+PROVEDOR = "openrouter"
+MODELO = {"openrouter": "anthropic/claude-opus-5.5", "anthropic": "claude-opus-5-5"}[PROVEDOR]
 ESFORCO = "low"          # tarefa curta e fechada: traducao para vocabulario fixo
 MAX_TOKENS = 2048        # cabe o raciocinio em esforco baixo + um JSON pequeno
 
-API_URL = "https://api.anthropic.com/v1/messages"
+URL = {"openrouter": "https://openrouter.ai/api/v1/chat/completions",
+       "anthropic": "https://api.anthropic.com/v1/messages"}
 API_VERSION = "2023-06-01"
-# Fallback no servidor quando o modelo recusa por politica. Haiku nao tem.
+# Fallback no servidor da Anthropic quando o modelo recusa por politica
+# (so API direta; Haiku nao tem).
 BETA_FALLBACK = "server-side-fallback-2026-07-01"
 
 SYSTEM_PROMPT = """\
@@ -94,7 +98,18 @@ def montar_usuario(texto: str, papel: str, vendedores: list[str]) -> str:
     )
 
 
-def corpo_requisicao(texto: str, papel: str, vendedores: list[str], modelo: str = MODELO) -> dict:
+def corpo_requisicao(texto: str, papel: str, vendedores: list[str], modelo: str = MODELO,
+                     provedor: str = PROVEDOR) -> dict:
+    if provedor == "openrouter":
+        return {
+            "model": modelo,
+            "max_tokens": MAX_TOKENS,
+            "reasoning": {"effort": ESFORCO},
+            "response_format": {"type": "json_schema",
+                                "json_schema": {"name": "comando", "strict": True, "schema": SCHEMA}},
+            "messages": [{"role": "system", "content": SYSTEM_PROMPT},
+                         {"role": "user", "content": montar_usuario(texto, papel, vendedores)}],
+        }
     corpo = {
         "model": modelo,
         "max_tokens": MAX_TOKENS,
@@ -107,16 +122,27 @@ def corpo_requisicao(texto: str, papel: str, vendedores: list[str], modelo: str 
     return corpo
 
 
-def headers(api_key: str, modelo: str = MODELO) -> dict:
+def headers(api_key: str, modelo: str = MODELO, provedor: str = PROVEDOR) -> dict:
+    if provedor == "openrouter":
+        return {"content-type": "application/json", "authorization": f"Bearer {api_key}",
+                "x-title": "lead-distributor comandos"}
     h = {"content-type": "application/json", "x-api-key": api_key, "anthropic-version": API_VERSION}
     if not modelo.startswith("claude-haiku"):
         h["anthropic-beta"] = BETA_FALLBACK
     return h
 
 
-def extrair_comando(resposta: dict) -> str | None:
+def extrair_comando(resposta: dict, provedor: str = PROVEDOR) -> str | None:
     """Comando sugerido, ou None se a resposta nao serve (recusa, corte, JSON
     invalido). None = o n8n manda o texto original, como sem IA."""
+    if provedor == "openrouter":
+        try:
+            esc = resposta["choices"][0]
+            if esc.get("finish_reason") not in ("stop", None):
+                return None
+            return str(json.loads(esc["message"]["content"]).get("comando", "")).strip()
+        except (KeyError, IndexError, TypeError, ValueError, AttributeError):
+            return None
     if resposta.get("stop_reason") not in ("end_turn", None):
         return None
     for bloco in resposta.get("content", []):

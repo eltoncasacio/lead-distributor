@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Avalia o tradutor de comandos contra frases de teste, chamando a API de verdade.
 
-  python3 comandos_ia/avaliar.py                       usa prompt.MODELO
-  python3 comandos_ia/avaliar.py --modelo claude-haiku-5-5
+  python3 comandos_ia/avaliar.py                                    prompt.PROVEDOR / prompt.MODELO
+  python3 comandos_ia/avaliar.py --modelo anthropic/claude-haiku-5.5
+  python3 comandos_ia/avaliar.py --provedor anthropic --modelo claude-haiku-5-5
 
-Requer ANTHROPIC_API_KEY no .env. Cada rodada custa dinheiro (poucos
+Requer OPENROUTER_API_KEY (ou ANTHROPIC_API_KEY, com --provedor anthropic) no .env. Cada rodada custa dinheiro (poucos
 centavos: ~40 frases curtas) — o custo medido sai no fim.
 
 Usa HTTP puro, e nao o SDK, de proposito: o que esta sob teste e o corpo exato
@@ -22,13 +23,17 @@ import prompt as P
 
 RAIZ = pathlib.Path(__file__).resolve().parents[1]
 ENV = dict(l.split("=", 1) for l in (RAIZ / ".env").read_text().splitlines() if "=" in l and not l.startswith("#"))
-CHAVE = ENV.get("ANTHROPIC_API_KEY", "").strip()
-if not CHAVE: sys.exit("ANTHROPIC_API_KEY nao esta no .env")
+PROVEDOR = sys.argv[sys.argv.index("--provedor") + 1] if "--provedor" in sys.argv else P.PROVEDOR
+VAR = {"openrouter": "OPENROUTER_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}[PROVEDOR]
+CHAVE = ENV.get(VAR, "").strip()
+if not CHAVE: sys.exit(f"{VAR} nao esta no .env")
 MODELO = sys.argv[sys.argv.index("--modelo") + 1] if "--modelo" in sys.argv else P.MODELO
 
 VENDEDORES = ["Giu", "Japa", "Diego", "André"]
 # Precos por 1M tokens (entrada, saida), da referencia da API em 2026-10.
-PRECO = {"claude-opus-5-5": (4.0, 20.0), "claude-haiku-5-5": (0.10, 0.50), "claude-sonnet-5-5": (2.0, 10.0)}
+PRECO = {"claude-opus-5-5": (4.0, 20.0), "claude-haiku-5-5": (0.10, 0.50), "claude-sonnet-5-5": (2.0, 10.0),
+         "anthropic/claude-opus-5.5": (4.0, 20.0), "anthropic/claude-haiku-5.5": (0.10, 0.50),
+         "anthropic/claude-sonnet-5.5": (2.0, 10.0)}
 
 # (papel, mensagem, esperado). Esperado "" = nao e comando.
 CASOS = [
@@ -85,8 +90,8 @@ def travas(texto, sug):
 
 
 def chamar(texto, papel):
-    corpo = P.corpo_requisicao(texto, papel, VENDEDORES, MODELO)
-    req = urllib.request.Request(P.API_URL, data=json.dumps(corpo).encode(), headers=P.headers(CHAVE, MODELO))
+    corpo = P.corpo_requisicao(texto, papel, VENDEDORES, MODELO, PROVEDOR)
+    req = urllib.request.Request(P.URL[PROVEDOR], data=json.dumps(corpo).encode(), headers=P.headers(CHAVE, MODELO, PROVEDOR))
     t0 = time.time()
     try:
         with urllib.request.urlopen(req, timeout=60) as r: resp = json.loads(r.read())
@@ -95,13 +100,19 @@ def chamar(texto, papel):
     return resp, time.time() - t0
 
 
+CUSTO_REAL = []
+
+
 def main():
-    print(f"modelo: {MODELO} | esforco: {P.ESFORCO} | {len(CASOS)} frases\n")
+    print(f"provedor: {PROVEDOR} | modelo: {MODELO} | esforco: {P.ESFORCO} | {len(CASOS)} frases\n")
     ok = seguro = perigoso = 0; tin = tout = 0; lat = []
     for papel, texto, esperado in CASOS:
         resp, dt = chamar(texto, papel); lat.append(dt)
-        u = resp.get("usage", {}); tin += u.get("input_tokens", 0); tout += u.get("output_tokens", 0)
-        sug = P.extrair_comando(resp)
+        u = resp.get("usage", {})
+        tin += u.get("input_tokens", u.get("prompt_tokens", 0)); tout += u.get("output_tokens", u.get("completion_tokens", 0))
+        custo_or = u.get("cost")   # OpenRouter devolve o custo real da chamada
+        if custo_or is not None: CUSTO_REAL.append(float(custo_or))
+        sug = P.extrair_comando(resp, PROVEDOR)
         final, motivo = travas(texto, sug)
         alvo = esperado if esperado else texto   # sem comando: deve cair no texto original
         if norm(final) == norm(alvo) or (dig(final) and norm(re.sub(r"[\d()\- ]+$", "", final)) == norm(re.sub(r"[\d()\- ]+$", "", alvo)) and dig(final)[-8:] == dig(alvo)[-8:]):
@@ -114,7 +125,9 @@ def main():
     pin, pout = PRECO.get(MODELO, (0, 0))
     custo = (tin * pin + tout * pout) / 1e6
     print(f"\nacertos: {ok}/{len(CASOS)} | erro seguro (cai no texto original): {seguro} | ERRO PERIGOSO: {perigoso}")
-    print(f"tokens: {tin} entrada, {tout} saida | custo da rodada: US$ {custo:.4f} (~US$ {custo/len(CASOS):.5f} por mensagem)")
+    if CUSTO_REAL: custo = sum(CUSTO_REAL)
+    print(f"tokens: {tin} entrada, {tout} saida | custo da rodada: US$ {custo:.4f} (~US$ {custo/len(CASOS):.5f} por mensagem)"
+          + (" [custo real informado pelo OpenRouter]" if CUSTO_REAL else " [estimado pela tabela de precos]"))
     print(f"latencia: media {sum(lat)/len(lat):.1f}s, pior {max(lat):.1f}s")
 
 
