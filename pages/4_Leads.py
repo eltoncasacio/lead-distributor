@@ -136,15 +136,27 @@ sem_resposta = len([l for l in leads_lista if l["status_lead"] == "sem_resposta"
 sem_interesse = len([l for l in leads_lista if l["status_lead"] == "sem_interesse"])
 vendido = len([l for l in leads_lista if l["status_lead"] == "vendido"])
 
-# Tabs individuais por status
-tab_todos, tab_negociando, tab_sem_resposta, tab_sem_interesse, tab_vendido = st.tabs(
-    [
-        f"Todos ({todos})",
-        f"Negociando ({negociando})",
-        f"Sem Resposta ({sem_resposta})",
-        f"Sem Interesse ({sem_interesse})",
-        f"Vendido ({vendido})",
-    ]
+# Inicializar tab ativa no session_state
+if "leads_tab_ativa" not in st.session_state:
+    st.session_state["leads_tab_ativa"] = "Todos"
+
+# Radio horizontal simulando tabs (persiste entre reruns)
+tab_keys = ["Todos", "Negociando", "Sem Resposta", "Sem Interesse", "Vendido"]
+tab_map = {
+    "Todos": f"Todos ({todos})",
+    "Negociando": f"Negociando ({negociando})",
+    "Sem Resposta": f"Sem Resposta ({sem_resposta})",
+    "Sem Interesse": f"Sem Interesse ({sem_interesse})",
+    "Vendido": f"Vendido ({vendido})",
+}
+
+tab_selecionada = st.radio(
+    "Status:",
+    tab_keys,
+    format_func=lambda k: tab_map[k],
+    horizontal=True,
+    key="leads_tab_ativa",
+    label_visibility="collapsed",
 )
 
 
@@ -284,30 +296,30 @@ def render_leads_table_filtrada(leads, tab_key="todos"):
     st.caption(f"Total: {len(leads)} leads")
 
 
-with tab_todos:
+if tab_selecionada == "Todos":
     with st.container(border=True):
         st.markdown("#### Todos os Leads")
         render_leads_table_filtrada(leads_lista, tab_key="todos")
 
-with tab_negociando:
+elif tab_selecionada == "Negociando":
     with st.container(border=True):
         st.markdown("#### Leads em Negociacao")
         leads_negociando = [l for l in leads_lista if l["status_lead"] == "negociando"]
         render_leads_table_filtrada(leads_negociando, tab_key="negociando")
 
-with tab_sem_resposta:
+elif tab_selecionada == "Sem Resposta":
     with st.container(border=True):
         st.markdown("#### Leads Sem Resposta")
         leads_sem_resposta = [l for l in leads_lista if l["status_lead"] == "sem_resposta"]
         render_leads_table_filtrada(leads_sem_resposta, tab_key="sem_resposta")
 
-with tab_sem_interesse:
+elif tab_selecionada == "Sem Interesse":
     with st.container(border=True):
         st.markdown("#### Leads Sem Interesse")
         leads_sem_interesse = [l for l in leads_lista if l["status_lead"] == "sem_interesse"]
         render_leads_table_filtrada(leads_sem_interesse, tab_key="sem_interesse")
 
-with tab_vendido:
+elif tab_selecionada == "Vendido":
     with st.container(border=True):
         st.markdown("#### Vendas Concretizadas")
         leads_vendido = [l for l in leads_lista if l["status_lead"] == "vendido"]
