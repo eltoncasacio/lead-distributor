@@ -261,7 +261,7 @@ Script: [`docs/dev/fase-a/aplicar_comandos_n8n.py`](../../../dev/fase-a/aplicar_
 
 **Como funciona:** só gerente/vendedor cadastrado chega aqui (cliente nunca passa pela IA). Comando exato (`menu`, `sim`, `status`...) não chama a IA. Frase livre chama o Claude Haiku 5.5 via OpenRouter, que devolve `{acao, nome, telefone, pergunta}`; `executar_comando_ia` (Postgres) aplica as travas — ação de lista fechada, sem "confirmar", sem telefone ou nome novo que não estejam na mensagem — e cai no texto original se algo não passar. Escrita continua exigindo eco + "sim". Todos os nós de IA têm continuar-em-falha: IA fora do ar = comportamento sem IA.
 
-**Custo:** limite de 30 chamadas por pessoa por dia (`ia_uso`), só 300 caracteres vão para a IA. Medido na avaliação: ~US$ 0,0002 por chamada. Teto absoluto: limite da chave no OpenRouter (estava US$ 50 em 10/10; recomendado baixar). Credencial n8n `OpenRouter comandos` (`GkfWD0Re83BDAgnN`) — a chave não fica no workflow.
+**Custo:** limite de 30 chamadas por pessoa por dia (`ia_uso`), só 300 caracteres vão para a IA. Medido na avaliação: ~US$ 0,0002 por chamada. Teto absoluto: limite da chave no OpenRouter — **US$ 5 por mês, com reinício mensal** (conferido pela API em 10/10; gasto até então US$ 0,24, quase todo das avaliações). Credencial n8n `OpenRouter comandos` (`GkfWD0Re83BDAgnN`) — a chave não fica no workflow.
 
 **Verificado com o celular do dono (antes do limite):** execuções `9176`–`9180` — `me mostra a equipe` → listar; `mexe no andre` → pergunta de esclarecimento; `menu`; `teste` → nenhum (menu); vendedor André `Quais sao os leads...` → meus leads. Todas certas, 1,5–4 s de IA.
 
