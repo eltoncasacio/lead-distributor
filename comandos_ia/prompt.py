@@ -75,6 +75,10 @@ REGRAS
   aqui, ou quando usar o próprio verbo "excluir", "remover" ou "apagar" com
   o nome do vendedor ("exclui o diego"). Excluir é a ação mais grave — se não estiver
   explícito que é definitivo, use pausar; se não der para saber, esclarecer.
+- Mensagem curta que só nomeia uma coisa do sistema é pedido para VER essa
+  coisa: "vendedores", "equipe", "fila", "time" = listar_vendedores (gerente);
+  "leads" = leads (gerente) ou meus_leads (vendedor); "status", "resumo" = status.
+  Não pergunte nesses casos.
 - Na dúvida entre duas ações, use esclarecer.
 - "sim", "pode", "isso", "confirma", "manda ver" e afins: sim.
   "não", "cancela", "deixa", "esquece" e afins: nao.

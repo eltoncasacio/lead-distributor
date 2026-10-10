@@ -43,6 +43,15 @@ CASOS = [
     ("gerente", "listar vendedores", ("listar_vendedores", None)),
     ("gerente", "lsitar vendedores", ("listar_vendedores", None)),
     ("gerente", "me mostra a equipe", ("listar_vendedores", None)),
+    # palavra solta = ver aquilo (execucao 9238, 10/10: "Vendedores" virou pergunta)
+    ("gerente", "Vendedores", ("listar_vendedores", None)),
+    ("gerente", "equipe", ("listar_vendedores", None)),
+    ("gerente", "fila", ("listar_vendedores", None)),
+    ("gerente", "resumo", ("status", None)),
+    ("vendedor", "leads", ("meus_leads", None)),
+    # do teste real da Maria (10/10)
+    ("gerente", "Adiciona vendedor ton 19999746219", ("inserir", "ton")),
+    ("gerente", "Quantas lojas existem?", ("original", None)),
     ("gerente", "quem ta recebendo lead?", ("listar_vendedores", None)),
     ("gerente", "status", ("status", None)),
     ("gerente", "como tá a loja hoje", ("status", None)),
