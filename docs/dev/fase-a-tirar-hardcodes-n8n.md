@@ -140,6 +140,8 @@ Encontrados durante o levantamento. **Não são Fase A** — registrados para n�
 
 ### O alerta de desconexão é estruturalmente indeliverável
 
+> **Resolvido em 2026-10-10:** o alerta passou a ir por **e-mail** (Gmail), fora da instância que caiu, com espera de 5 min e reconferência para não alertar oscilação. Ver RUNBOOK do incidente NaPista. O texto abaixo é o diagnóstico original.
+
 `Enviar Alerta Conexão` envia **através da própria instância que caiu**. Quando `state === 'close'`, a Evolution não entrega — o alerta `❌ DESCONECTADO`, que é o único que importa, nunca chega. Só o `✅ RECONECTADO` chega, e só depois de resolvido.
 
 Isso vale mais do que parece: foram **62 quedas em 14 dias** com uma loja, e a razão de ligar esse alerta era não perder lead em silêncio. Conserto exige um canal fora da instância que caiu (outra instância, e-mail, Telegram).

@@ -273,6 +273,21 @@ Script: [`docs/dev/fase-a/aplicar_comandos_n8n.py`](../../../dev/fase-a/aplicar_
 
 **Só ativo fala com o sistema (regra do dono, 10/10 noite).** Vendedor pausado/removido e gerente desativado não recebem resposta nem gastam IA (`executar_comando` e `reservar_ia`). No n8n, `Tem Resposta?` entre `Comando Legado?` (não) e `Enviar Resposta Comando` impede mensagem vazia — `27980f06` → `f45f0f4f`, script `docs/dev/fase-a/aplicar_silencio_n8n.py`. Aplicado nessa ordem (n8n antes do banco) para nunca haver janela de mensagem vazia. `identificar_remetente` **não** mudou: vendedor pausado continua indo para o caminho de comando (e sendo ignorado), em vez de virar lead. Conferido em produção: 4 gerentes e 3 vendedores ativos respondem; Felipe e Silas (removidos) ignorados; André (gerente + vendedor pausado) responde como gerente.
 
+## Alerta de desconexão por e-mail (2026-10-10, noite)
+
+Resolve o "Por que ninguém foi avisado" do complemento de 09/10. Decisão do dono: e-mail para `eltoncasaccia@gmail.com`.
+
+| | `versionId` |
+|---|---|
+| antes | `140877d2-7e93-4efc-96d8-d685f0988c69` |
+| depois | `c327145a-af8a-4738-b0a1-7493ad1f306b` |
+
+Script: [`docs/dev/fase-a/aplicar_alerta_email_n8n.py`](../../../dev/fase-a/aplicar_alerta_email_n8n.py). Caminho: `É Mensagem?` (não é mensagem) → `É Queda?` (`connection.update` + `state=close`) → `Esperar 5 min` → `Checar Conexão` (GET `/instance/connectionState/{instância}` com a chave do próprio webhook) → `Ainda Caída?` (≠ `open`, ou sem resposta) → `Email Alerta Conexão` (Gmail, credencial existente `Gmail account`, a mesma do gatilho da NaPista). `Montar Alerta` ficou como estava (sem saída). Oscilações de segundos não geram e-mail. Vale para qualquer loja: instância, servidor e chave vêm do webhook.
+
+**Testado ponta a ponta com eventos simulados no webhook de produção:** `9188` (`renato-motors`, conectada de fato) → conferiu `open`, **sem e-mail**; `9189` (`teste-alerta`, inexistente) → conferência falhou, **e-mail enviado**. Antes, e-mail de teste por workflow descartável confirmou que a credencial Gmail envia (recebido pelo dono).
+
+**Limite conhecido:** uma queda que volta e cai de novo dentro de 5 min pode gerar mais de um e-mail (sem deduplicação).
+
 ## Arquivos
 
 - `FIX_mensagens_recebidas.sql` / `ROLLBACK_mensagens_recebidas.sql` — Fase 3. **Não aplicados**: DDL não passa pela PostgREST, tem de ser rodado no SQL Editor do Supabase. Não tocam `leads` nem `distribuir_lead`.
