@@ -49,6 +49,8 @@ A URL termina em `renato-motors` **de propósito**: é só o nome do caminho no 
 
 Antes de conectar o número, para a primeira mensagem já achar a loja. Duas inserções obrigatórias e uma opcional:
 
+> **Vendedor por SQL (corrigido em 2026-10-17, onboarding da Fitcar):** `vendedores.ordem_fila` é `NOT NULL` — informe 1, 2, 3… (não afeta o rodízio, que segue `criado_em`). E insira um vendedor por vez, em transações separadas, senão o `criado_em` empata e o rodízio trava.
+
 ```sql
 -- loja
 INSERT INTO lojas (nome, numero_whatsapp, instancia_evolution, evolution_api_key, ativa)

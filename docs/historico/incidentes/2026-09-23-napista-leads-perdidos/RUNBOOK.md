@@ -321,6 +321,14 @@ Achado ao montar o onboarding da segunda loja: loja **sem** linha em `mensagens_
 
 **Revisão marcada: 2026-10-17** — `python3 portaria/relatorio_sombra.py` mostra o que a Portaria teria ignorado; o dono decide se liga de verdade. Reverter: `docs/dev/fase-a/aplicar_portaria_sombra_n8n.py --reverter` e `sql/portaria/ROLLBACK_portaria_sombra.sql`.
 
+## Filtro de mensagem de grupo (2026-10-17, onboarding da Fitcar)
+
+**Causa:** o workflow nunca filtrou `@g.us`. A Renato Motors não recebe mensagem de grupo, então não aparecia; a Fitcar está em grupos de revenda e, na primeira hora, 82 de 148 mensagens vieram de grupo — 5 viraram lead (ID do grupo como "cliente") e o resto reencaminhou "Novo Lead" ao vendedor a cada foto/figurinha. Grupo com ID antigo (`…-1450533080`) estourou `varchar(20)` em `distribuir_lead` → 2 alertas "Lead não distribuído".
+
+**Aplicado** (`f8823350` → `5caaf99a`, 11:58:58 de Brasília; `docs/dev/fase-a/aplicar_filtro_grupo_n8n.py`): `Filtro fromMe` passa a descartar (saída 0 → NoOp) também `remoteJid` terminado em `@g.us`, `@newsletter` ou `@broadcast`; combinador OR; a condição vazia antiga (`""==""`) removida. Conversa individual (`@s.whatsapp.net`, `@lid`) não muda. **Dados:** os 5 leads de grupo da Fitcar apagados com ok do dono (nenhuma linha de `mensagens_recebidas` apontava para eles).
+
+**Não verificado ainda:** a última mensagem de grupo chegou 1,5 min **antes** da aplicação; nenhuma depois até 15:00 UTC. Conferir na próxima: execução termina em `No Operation, do nothing` e não há lead novo com `numero_cliente like '120363%'`. Reverter: `aplicar_filtro_grupo_n8n.py --reverter`.
+
 ## Arquivos
 
 - `FIX_mensagens_recebidas.sql` / `ROLLBACK_mensagens_recebidas.sql` — Fase 3. **Não aplicados**: DDL não passa pela PostgREST, tem de ser rodado no SQL Editor do Supabase. Não tocam `leads` nem `distribuir_lead`.

@@ -24,7 +24,7 @@ Existem outras versões no mesmo ambiente n8n, todas **arquivadas** (não ativas
 Webhook → É Mensagem? ─(não)→ Montar Alerta → Enviar Alerta Conexão
               │(sim)
               ▼
-        Filtro fromMe ─(é eco)→ NoOp
+        Filtro fromMe ─(é eco, ou grupo/canal/transmissão)→ NoOp   (grupo desde 2026-10-17)
               │
         Normaliza Dados → Filtro Msg Vazia → Identificar Loja → Loja Encontrada?
                                                                        │
