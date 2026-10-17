@@ -218,6 +218,8 @@ Só quando houver o terceiro cliente. Antes disso, fatura manual resolve e custa
 - [ ] `lojas.limite_leads` passa a ser lido e aplicado
 - [ ] Aviso à loja ao se aproximar do limite
 
+> **Proposta de preço registrada em 2026-10-10** — ver "Preço e modelo de venda" abaixo. Ela cobra por **faixa de vendedores**, não por volume de leads; se for adotada, `limite_leads` deixa de ser o eixo do plano.
+
 ---
 
 ## Ordem recomendada e por quê
@@ -281,11 +283,69 @@ Operação de 2026-10-08/09 (fora de código): vendedor Felipe removido da fila 
 
 **Achado para "quem fez o quê":** `atividades` não tem coluna de autor nem de vendedor (só `tipo` e `descricao`). Registrar autor de comando exige coluna nova.
 
+## Preço e modelo de venda (proposta de 2026-10-10)
+
+> **Proposta, não decisão.** Valores de mercado e de hora de desenvolvimento são estimativa, não pesquisa. Custo direto por loja **não foi medido** (faltam as faturas de VPS, Supabase e n8n). Revisar depois da segunda loja real.
+
+**Produto que está sendo vendido:** distribuição de leads + gestão da equipe **100% pelo WhatsApp** (sem painel; o Streamlit saiu do plano). Multi-loja provado (Fase B), comandos com IA em produção, alerta de queda por e-mail.
+
+**Custo de reconstruir (valor do ativo, não preço):** ~430–750 h — n8n e 7 parsers (150–250), regras no Postgres e concorrência (60–120), comandos + IA com travas (60–100), multi-loja e prova de isolamento (40–60), portaria/alertas/triagem (40–70), aprendizado de operação dos incidentes (80–150). A R$ 100–150/h: **R$ 45–110 mil**. Serve para saber o que o concorrente teria de gastar, não para precificar.
+
+**Custo por loja:** a instância Evolution roda no servidor próprio (`yavoh`), n8n e Supabase são compartilhados, a IA custa centavos (teto da chave: US$ 5/mês para **todas** as lojas juntas). Estimativa não medida: **R$ 30–80/mês de custo direto**. O custo real é **tempo do dono**: onboarding manual ([onboarding-segunda-loja.md](dev/onboarding-segunda-loja.md)) e reconexão quando o WhatsApp cai.
+
+**Modelo: mensalidade + implantação. Não vender por valor fixo** — parser quebra quando o portal muda, WhatsApp desconecta, e isso é trabalho contínuo. Se o cliente exigir pagamento único, só com contrato de manutenção mensal obrigatório.
+
+| Faixa | Preço sugerido |
+|---|---|
+| Até 4 vendedores | R$ 297/mês |
+| 5 a 10 vendedores | R$ 497/mês |
+| Mais de 10, ou rede | R$ 397/loja/mês ou sob consulta |
+| Implantação (instância, conexão, cadastro, portais) | R$ 500–1.000, uma vez |
+
+IA dos comandos e portaria entram em todas as faixas — produto simples não precisa de plano por funcionalidade.
+
+**O que vender:** nenhum lead perdido, distribuição em segundos sem briga, gerente administra a equipe por mensagem, nada novo para instalar. **O que não prometer:** aumento de vendas — não há dado de conversão (ninguém marca venda).
+
+**Antes do primeiro cliente pagante, pesar:**
+- **Repositório público no GitHub** — código, prompts, SQL e documentação de incidente ficam abertos para quem quiser copiar.
+- **Fase E (monitoramento por origem) não feita** — sem ela, um "NaPista de novo" em loja que o dono não acompanha passa despercebido. Vira obrigatória a partir de 3 lojas.
+- **Teto de US$ 5/mês do OpenRouter é um só para todas as lojas** — ver "Concorrência e escala" abaixo.
+
+**Próximo passo:** segunda loja real como piloto, com desconto nos primeiros meses, **medindo horas de suporte**. É esse número que confirma ou derruba os preços acima.
+
+## Concorrência e escala com várias lojas (levantado em 2026-10-10)
+
+Pergunta do dono: "se várias lojas mandarem comando ou lead ao mesmo tempo, o que acontece? Não tem fila?"
+
+**Não há fila explícita, e no banco ela não faz falta.** Cada mensagem vira uma execução própria do n8n, em paralelo. Quem impede a bagunça são travas no Postgres, verificadas no código SQL:
+
+| Situação | O que segura | Efeito |
+|---|---|---|
+| Mesmo cliente, mesma loja, duas mensagens juntas | `pg_advisory_xact_lock(loja\|cliente)` em `distribuir_lead` ([ADR 0002](adr/0002-lock-advisory-race-condition.md)) | a segunda espera a primeira; cliente vai para um vendedor só |
+| Dois leads diferentes, mesma loja, mesmo instante | `FOR UPDATE` na linha da loja (ponteiro do rodízio, [ADR 0001](adr/0001-postgres-rpc-dono-da-atomicidade.md)) | espera de milissegundos; cada lead vai para o próximo da fila |
+| Leads de lojas diferentes | linhas e locks diferentes | **não se bloqueiam** |
+| Dois gerentes da mesma loja mandando comando | `pg_advisory_xact_lock('executar_comando:'+loja)` | serializados; pendência e escrita andam juntas |
+| Comandos de lojas diferentes | locks diferentes | paralelos |
+| Contador de uso da IA | `INSERT ... ON CONFLICT` em `ia_uso` | atômico |
+
+**Volume para escala:** a Renato Motors recebe 113–310 leads/mês (~10/dia). Vinte lojas assim dão ~200/dia — irrelevante para o Postgres.
+
+**Onde o gargalo de verdade está (infra compartilhada, não concorrência):**
+
+1. **Um n8n só para todas as lojas.** Se ele cair ou travar, todas param juntas. **Não verificado:** modo de execução (`regular` ou `queue`) e se há `N8N_CONCURRENCY_PRODUCTION_LIMIT` — fica no ambiente do container (Portainer). Também não verificado se a Evolution reenvia webhook que falhou; se não reenvia, mensagem que chega com o n8n fora se perde.
+2. **Todas as instâncias Evolution no mesmo servidor** (`evolution.yavoh.cloud`). Servidor fora = todas as lojas fora; o alerta por e-mail avisa de cada uma.
+3. **Teto de US$ 5/mês da chave OpenRouter é global.** Comandos e portaria (até 200 chamadas/loja/dia na sombra) usam a mesma chave. A ~US$ 0,0002/chamada, uma loja com a portaria no teto gasta ~US$ 1,2/mês — umas quatro ou cinco lojas assim estouram o teto. Ao estourar **nada para**: os nós de IA têm continuar-em-falha e o sistema volta ao comportamento sem IA, para todas as lojas até o mês virar. Revisar o teto conforme as lojas entram.
+4. **Envio pelo WhatsApp é por número da loja**, então uma loja movimentada não atrasa a outra no envio.
+
 ## O passo que não é código
 
 **Conseguir a segunda loja.** Uma loja real, pagando ou em teste. Sem ela, cadastro, planos e isolamento são construídos no escuro, adivinhando o que o cliente precisa.
 
-> **2026-10-17 — segunda loja real: Fitcar.** Instância Evolution `Fitcar` (criada pelo dono; nome com maiúscula, é o que vai em `lojas.instancia_evolution`), número da loja `551932710905` (WhatsApp Business em fixo), origem só WhatsApp. Feito pelo Claude: webhook da instância igual ao da Renato Motors; `lojas` (`d67186bb-fc87-4efa-a9f1-a9604a62faf0`), gerente Rafael (`…4948`), vendedores Eloiza (`…3278`) e Alessando (`…0403`, grafia como o dono passou), inseridos em momentos diferentes. Número conectado em 17/10 por **QR code** (o código de pareamento deu "código incorreto" duas vezes; com WhatsApp Business em fixo, prefira o QR). **No ar:** 5 leads reais nos primeiros 2 minutos, rodízio alternando Eloiza/Alessando, fila da Renato Motors intacta. **Achado (investigado no mesmo dia, execuções do n8n 14:00–14:50 UTC):** o workflow **não filtra mensagens de grupo** (`@g.us`). A Fitcar está em grupos de revenda; de 148 mensagens, 82 vieram de grupos — 3 viraram lead ("cliente" = ID do grupo) e 77 reencaminharam "Novo Lead" ao vendedor (dedup devolve `duplicado = true` e WhatsApp Direto reencaminha, por design). Grupo com ID no formato antigo (`…-1450533080`) estoura `varchar(20)` em `distribuir_lead` → erro → alerta "Lead não distribuído" (2 mensagens, as únicas não distribuídas). Na Renato Motors nunca apareceu porque o número dela não recebe mensagem de grupo. **Corrigido com ok do dono:** `Filtro fromMe` descarta `@g.us`/`@newsletter`/`@broadcast` (`f8823350` → `5caaf99a`) e os 5 leads de grupo foram apagados — ver RUNBOOK do incidente NaPista. Achado: `vendedores.ordem_fila` é `NOT NULL` — inserção sem ela falha (o roteiro não dizia).
+> **2026-10-17 — segunda loja real: Fitcar.** Instância Evolution `Fitcar` (criada pelo dono; nome com maiúscula, é o que vai em `lojas.instancia_evolution`), número da loja `551932710905` (WhatsApp Business em fixo), origem só WhatsApp. Feito pelo Claude: webhook da instância igual ao da Renato Motors; `lojas` (`d67186bb-fc87-4efa-a9f1-a9604a62faf0`), gerente Rafael (`…4948`), vendedores Eloiza (`…3278`) e Alessandro (`…0403`; cadastrado como "Alessando" e corrigido no mesmo dia), inseridos em momentos diferentes. Número conectado em 17/10 por **QR code** (o código de pareamento deu "código incorreto" duas vezes; com WhatsApp Business em fixo, prefira o QR). **No ar:** 5 leads reais nos primeiros 2 minutos, rodízio alternando Eloiza/Alessando, fila da Renato Motors intacta. **Achado (investigado no mesmo dia, execuções do n8n 14:00–14:50 UTC):** o workflow **não filtra mensagens de grupo** (`@g.us`). A Fitcar está em grupos de revenda; de 148 mensagens, 82 vieram de grupos — 3 viraram lead ("cliente" = ID do grupo) e 77 reencaminharam "Novo Lead" ao vendedor (dedup devolve `duplicado = true` e WhatsApp Direto reencaminha, por design). Grupo com ID no formato antigo (`…-1450533080`) estoura `varchar(20)` em `distribuir_lead` → erro → alerta "Lead não distribuído" (2 mensagens, as únicas não distribuídas). Na Renato Motors nunca apareceu porque o número dela não recebe mensagem de grupo. **Corrigido com ok do dono:** `Filtro fromMe` descarta `@g.us`/`@newsletter`/`@broadcast` (`f8823350` → `5caaf99a`) e os 5 leads de grupo foram apagados — ver RUNBOOK do incidente NaPista. Achado: `vendedores.ordem_fila` é `NOT NULL` — inserção sem ela falha (o roteiro não dizia).
+
+> **2026-10-17 — terceira loja real: TbMotors.** Instância Evolution `TbMotors` (criada pelo dono; o dono passou o token `E51D…`, não o nome — o nome saiu de `fetchInstances`), número da loja `551932296470` (fixo), origem só WhatsApp. Feito pelo Claude: webhook igual ao da Fitcar; `lojas` (`eb6e67b6-570c-42aa-95c3-c86d2bd3a3a6`), gerente Tiago (`…9307`), vendedores André (`…0511`), Fabiano (`…5684`) e Gustavo Piolla (`…0787`), um por vez. Sem mensagem pronta própria (vale a padrão do sistema). Número conectado em 17/10 às ~12:50 por **código de pareamento** (funcionou de primeira, ao contrário da Fitcar; para gerar o código foi preciso `logout` antes, porque a instância estava presa em `connecting` com sessão de QR e devolvia `pairingCode: null`). **Pendente:** conferir o primeiro lead.
+
+> **2026-10-17 — monitor de todas as lojas** (pedido do dono com 2 clientes novos): `monitor_lojas.py`, de hora em hora pelo launchd no Mac do dono, avisa o dono (notificação no Mac; WhatsApp só por um número exclusivo do sistema, **nunca pelo de uma loja** — a primeira versão saiu pela Renato Motors e o Renato viu o alerta) quando o WhatsApp de uma loja cai, quando uma loja fica 4 h sem mensagem em horário comercial, quando há lead sem vendedor e quando ID de grupo vira cliente. **É paliativo, não a Fase E**: roda no Mac e não olha origem por origem. Ver [dev/monitor-lojas.md](dev/monitor-lojas.md).
 
 E vale lembrar o atrito operacional por cliente, que não é software: cada loja precisa da própria instância Evolution, com leitura de QR code e webhook apontado para o n8n. Isso não escala sozinho e é o que mais vai consumir tempo no onboarding.
 

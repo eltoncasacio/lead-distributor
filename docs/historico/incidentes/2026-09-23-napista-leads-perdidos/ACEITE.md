@@ -198,3 +198,15 @@ Corte por origem, nesta ordem, cada um com 7 dias estáveis antes do próximo: N
 | Comando de gerente (`Identificar Loja` → `Identificar Remetente` → `Buscar Leads`) | **sim**, execução `9155` | — |
 | `Distribuir Lead`, `Registrar Mensagem`, `Buscar Mensagens Prontas` | **não** | Testar exige criar um lead real e mandar mensagem a um vendedor. Mesma configuração de credencial dos nós testados. Conferir no primeiro lead real com `auditoria_producao.py` e nas execuções do n8n |
 | Ramos Mobiauto e Webmotors | **não** | Chegam por webhook do portal; não há como disparar sem gerar lead. Mobiauto está há 7+ dias sem lead |
+
+## Aviso curto e repasse de mídia (2026-10-17, `3df66b7f`)
+
+| Caminho | Testado? | Por quê |
+|---|---|---|
+| Código de `Montar Notificação` (aviso completo, aviso curto, rótulos de mídia) | **sim, localmente** — Node com os dados reais da execução `9947` | — |
+| Aviso curto (texto) em produção | **sim**, execuções `9971` e `9973` (dono → Fitcar, 17:34) | — |
+| Repasse de áudio (`sendWhatsAppAudio`) | **sim**, execução `9972` (áudio de 10s → Alessandro) | — |
+| Repasse de foto e vídeo (`sendMedia`) | **sim**, execuções `9977` (foto com legenda) e `9978` (vídeo de 7s, 1,6 MB, repassado em 2,7 s) | — |
+| Repasse de documento | **não** | Mesmo caminho de foto/vídeo (`sendMedia`, `mediatype: document`); conferir no primeiro documento real |
+| Aviso completo depois da mudança | **não em produção** | O número do dono já era lead da Fitcar, então as 3 mensagens vieram com `duplicado = true`. Coberto no teste local; conferir no próximo cliente novo |
+| Vídeo grande (dezenas de MB) | **não** | O `base64` vai inteiro no corpo; testado só com 1,6 MB. Se falhar, o texto já foi entregue (nó continua em falha) |

@@ -64,7 +64,8 @@ source venv/bin/activate
 streamlit run Home.py              # rodar o Dashboard localmente
 python3 test_date_filters.py       # script de checagem de filtros de data (usa Supabase real)
 python3 validate_signatures.py     # valida assinaturas de funções de utils/queries.py
-python3 auditoria_producao.py      # foto do estado real de produção (somente leitura)
+python3 auditoria_producao.py      # foto do estado real de produção (somente leitura) — só Renato Motors
+python3 monitor_lojas.py           # todas as lojas ativas; roda sozinho de hora em hora (docs/dev/monitor-lojas.md)
 ```
 
 Não há linter/formatter configurado no repositório hoje.

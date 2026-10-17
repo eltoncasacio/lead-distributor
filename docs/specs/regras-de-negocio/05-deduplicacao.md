@@ -23,6 +23,8 @@ Se o cliente já tem qualquer lead anterior (para qualquer anúncio) atribuído 
 
 `duplicado = true` sozinho **não** significa silêncio automático. O workflow n8n só descarta a mensagem (não notifica o vendedor de novo) quando `duplicado = true` **e** o remetente é um número oficial de plataforma conhecida (iCarros ou NaPista, por regex de número fixo — ver [tecnica/03](../tecnica/03-workflow-n8n.md)). Um cliente que manda a mesma pergunta duas vezes por WhatsApp direto (`duplicado = true` mas remetente não é plataforma) **é encaminhado normalmente** de novo ao vendedor. Isso nunca esteve claro nos documentos antigos.
 
+**Formato do aviso (desde 2026-10-17, `3df66b7f`):** quando é encaminhado com `duplicado = true`, o vendedor recebe um **aviso curto** (nome, telefone, texto, link para responder), não o "🚗 Novo Lead" completo com mensagens prontas. Áudio, foto, vídeo e documento são repassados como arquivo. Cliente que cai no Passo 2 (outro anúncio) volta como `duplicado = false` e recebe o aviso completo.
+
 ## Medido em 2026-10-10: cliente que escreve de novo vira lead novo
 
 Queixa do dono: o cliente manda mensagem, é encaminhado ao vendedor, escreve de novo no número da loja e **conta como lead novo**. Confirmado no código e nos dados.

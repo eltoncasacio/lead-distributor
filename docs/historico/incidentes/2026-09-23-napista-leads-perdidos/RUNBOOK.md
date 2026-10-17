@@ -329,6 +329,18 @@ Achado ao montar o onboarding da segunda loja: loja **sem** linha em `mensagens_
 
 **Não verificado ainda:** a última mensagem de grupo chegou 1,5 min **antes** da aplicação; nenhuma depois até 15:00 UTC. Conferir na próxima: execução termina em `No Operation, do nothing` e não há lead novo com `numero_cliente like '120363%'`. Reverter: `aplicar_filtro_grupo_n8n.py --reverter`.
 
+**Verificado em 2026-10-17 (~17:30):** das 11:59 em diante, nenhum "Novo Lead" com ID de grupo saiu para vendedor da Fitcar (lidos na Evolution os avisos enviados no dia); mensagens de grupo seguem chegando e são descartadas. Os vendedores reclamaram de "mensagem de grupo" — eram os ~80 avisos da manhã, anteriores ao filtro.
+
+## Aviso curto para cliente que já tem vendedor + repasse de mídia (2026-10-17)
+
+**Queixa:** vendedores da Fitcar recebiam um "🚗 Novo Lead" completo a **cada** mensagem de cliente que já era lead (9 avisos do mesmo cliente num dia). Áudio e foto sem legenda chegavam como "Novo Lead" vazio. **Medido:** a contagem de leads estava certa (Fitcar: 25 leads = 25 clientes em 30 dias), o problema era só o formato do aviso.
+
+**Aplicado com ok do dono** (`5caaf99a` → `3df66b7f`; `docs/dev/fase-a/aplicar_aviso_curto_midia_n8n.py`):
+- `Montar Notificação`: se `distribuir_lead` devolve `duplicado = true` (e não é Mobiauto), o aviso é curto: `💬 *nome* · telefone`, o texto e o link `wa.me` para responder, sem cabeçalho nem mensagem pronta. Áudio, foto, vídeo, documento, figurinha, reação, localização e contato ganham rótulo ("🎤 Áudio (50s) — segue abaixo").
+- Novos nós `Tem Mídia?` → `Encaminhar Mídia` (entre `Encaminhar ao Vendedor` e `Loop Over Items`): repassa ao vendedor o arquivo de áudio (`sendWhatsAppAudio`), foto, vídeo ou documento (`sendMedia`) a partir do `base64` que a Evolution manda no webhook. Configurado para continuar em caso de falha: se o repasse falhar, o texto já foi entregue.
+
+Cliente que volta por **outro** anúncio continua `duplicado = false` (Passo 2) e recebe o aviso completo. Testado localmente com os dados da execução `9947` (áudio de 50s): 5 cenários. **Testado em produção às 17:34** (execuções `9971`–`9973`: texto, áudio, texto, do dono para a Fitcar): avisos curtos e áudio repassado ao Alessandro. Foto e vídeo testados às 17:41–17:42 (`9977`, `9978`). Aviso completo e documento ainda não testados em produção, ver ACEITE. Reverter: `aplicar_aviso_curto_midia_n8n.py --reverter`.
+
 ## Arquivos
 
 - `FIX_mensagens_recebidas.sql` / `ROLLBACK_mensagens_recebidas.sql` — Fase 3. **Não aplicados**: DDL não passa pela PostgREST, tem de ser rodado no SQL Editor do Supabase. Não tocam `leads` nem `distribuir_lead`.
